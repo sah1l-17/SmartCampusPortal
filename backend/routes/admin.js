@@ -398,298 +398,208 @@ router.delete("/events/:eventId", authenticate, authorize("admin"), async (req, 
   }
 })
 
-// Get all placements
-router.get("/placements", authenticate, authorize("admin"), async (req, res) => {
+// Get student by ID for placement - FIXED
+router.get("/students/:studentId", authenticate, authorize("admin"), async (req, res) => {
   try {
-    const placements = await Placement.find()
-      .populate("student", "name email userId department")
-      .sort({ createdAt: -1 })
+    const { studentId } = req.params
 
-    res.json(placements)
-  } catch (error) {
-    console.error("Get placements error:", error)
-    res.status(500).json({ message: "Server error" })
-  }
-})
+    // Try to find by userId first, then by _id
+    let student = await User.findOne({
+      userId: studentId,
+      role: "student",
+    }).select("-password")
 
-// Create placement
-router.post("/placements", authenticate, authorize("admin"), async (req, res) => {
-  try {
-    const { studentId, companyName, jobRole, packageAmount, yearOfPlacement } = req.body
-
-    if (!studentId || !companyName || !jobRole || !packageAmount || !yearOfPlacement) {
-      return res.status(400).json({ message: "All fields are required" })
+    // If not found by userId, try by _id
+    if (!student) {
+      student = await User.findOne({
+        _id: studentId,
+        role: "student",
+      }).select("-password")
     }
 
-    // Check if student exists
-    const student = await User.findById(studentId)
-    if (!student || student.role !== "student") {
+    if (!student) {
       return res.status(404).json({ message: "Student not found" })
     }
 
-    const placement = new Placement({
-      student: studentId,
-      companyName: companyName.trim(),
-      jobRole: jobRole.trim(),
-      packageAmount: Number.parseFloat(packageAmount),
-      yearOfPlacement: Number.parseInt(yearOfPlacement),
-    })
-
-    await placement.save()
-
-    // Log activity
-    await logActivity(
-      "placement_created",
-      `Placement record created for ${student.name} at ${companyName}`,
-      req.user._id,
-      "Placement",
-      placement._id,
-      { companyName, jobRole, packageAmount },
-    )
-
-    const populatedPlacement = await Placement.findById(placement._id).populate(
-      "student",
-      "name email userId department",
-    )
-
-    res.status(201).json({
-      message: "Placement created successfully",
-      placement: populatedPlacement,
-    })
-  } catch (error) {
-    console.error("Create placement error:", error)
-    res.status(500).json({ message: "Server error" })
-  }
-})
-
-// Update placement
-router.put("/placements/:placementId", authenticate, authorize("admin"), async (req, res) => {
-  try {
-    const { placementId } = req.params
-    const { companyName, jobRole, packageAmount, yearOfPlacement } = req.body
-
-    const placement = await Placement.findById(placementId)
-    if (!placement) {
-      return res.status(404).json({ message: "Placement not found" })
-    }
-
-    if (companyName) placement.companyName = companyName.trim()
-    if (jobRole) placement.jobRole = jobRole.trim()
-    if (packageAmount) placement.packageAmount = Number.parseFloat(packageAmount)
-    if (yearOfPlacement) placement.yearOfPlacement = Number.parseInt(yearOfPlacement)
-
-    await placement.save()
-
-    // Log activity
-    await logActivity(
-      "placement_updated",
-      `Placement record updated for placement ID ${placementId}`,
-      req.user._id,
-      "Placement",
-      placement._id,
-    )
-
-    const populatedPlacement = await Placement.findById(placement._id).populate(
-      "student",
-      "name email userId department",
-    )
-
     res.json({
-      message: "Placement updated successfully",
-      placement: populatedPlacement,
+      _id: student._id,
+      name: student.name,
+      email: student.email,
+      department: student.department,
+      userId: student.userId,
+      yearOfPlacement: new Date().getFullYear(), // Default to current year
     })
   } catch (error) {
-    console.error("Update placement error:", error)
+    console.error("Get student error:", error)
     res.status(500).json({ message: "Server error" })
   }
 })
 
-// Delete placement
-router.delete("/placements/:placementId", authenticate, authorize("admin"), async (req, res) => {
+// Add single placement record
+router.post("/placements", authenticate, authorize("admin"), async (req, res) => {
   try {
-    const { placementId } = req.params
+    const {
+      studentId,
+      studentName,
+      companyName,
+      package: packageAmount,
+      yearOfPlacement,
+      department,
+      jobRole,
+      placementType,
+    } = req.body
 
-    const placement = await Placement.findById(placementId)
-    if (!placement) {
-      return res.status(404).json({ message: "Placement not found" })
+    // Validate student exists
+    const student = await User.findOne({ userId: studentId, role: "student" })
+    if (!student) {
+      return res.status(400).json({ message: "Invalid student ID. Student not found." })
     }
 
-    await Placement.findByIdAndDelete(placementId)
+    // Check if placement already exists for this student and year
+    const existingPlacement = await Placement.findOne({ studentId, yearOfPlacement })
+    if (existingPlacement) {
+      return res.status(400).json({ message: "Placement record already exists for this student and year" })
+    }
+
+    const placement = new Placement({
+      studentId,
+      studentName: studentName || student.name,
+      companyName,
+      package: packageAmount,
+      yearOfPlacement,
+      department: department || student.department,
+      jobRole,
+      placementType,
+      addedBy: req.user._id,
+    })
+
+    await placement.save()
 
     // Log activity
     await logActivity(
-      "placement_deleted",
-      `Placement record deleted for placement ID ${placementId}`,
+      "placement_added",
+      `Placement record added for ${studentName} at ${companyName}`,
       req.user._id,
       "Placement",
       placement._id,
+      { studentId, companyName, package: packageAmount },
     )
 
-    res.json({ message: "Placement deleted successfully" })
+    res.status(201).json({ message: "Placement record added successfully", placement })
   } catch (error) {
-    console.error("Delete placement error:", error)
+    console.error("Add placement error:", error)
     res.status(500).json({ message: "Server error" })
   }
 })
 
-// Upload placements via Excel
+// Upload placements via Excel - UPDATED with better validation and upsert functionality
 router.post("/placements/upload", authenticate, authorize("admin"), upload.single("file"), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ message: "No file uploaded" })
     }
 
-    // Parse Excel file
     const workbook = xlsx.read(req.file.buffer, { type: "buffer" })
     const sheetName = workbook.SheetNames[0]
     const worksheet = workbook.Sheets[sheetName]
     const data = xlsx.utils.sheet_to_json(worksheet)
 
-    if (data.length === 0) {
-      return res.status(400).json({ message: "Excel file is empty" })
-    }
-
-    // Validate required columns
-    const requiredColumns = [
-      "StudentID",
-      "StudentName",
-      "CompanyName",
-      "Package",
-      "YearOfPlacement",
-      "Department",
-      "JobRole",
-    ]
-    const firstRow = data[0]
-    const missingColumns = requiredColumns.filter((col) => !(col in firstRow))
-
-    if (missingColumns.length > 0) {
-      return res.status(400).json({
-        message: `Missing required columns: ${missingColumns.join(", ")}. Required columns are: ${requiredColumns.join(", ")}`,
-      })
-    }
-
     const results = {
-      successful: 0,
-      failed: 0,
+      success: 0,
+      updated: 0,
       errors: [],
+      invalidStudents: [],
     }
 
-    // Process each row
     for (let i = 0; i < data.length; i++) {
       const row = data[i]
-      const rowNumber = i + 2 // Excel row number (accounting for header)
-
       try {
+        // Handle different possible column names
+        const studentId = row.StudentID || row.studentId || row["Student ID"] || row["Student Id"]
+        const studentName = row.StudentName || row.studentName || row["Student Name"]
+        const companyName = row.CompanyName || row.companyName || row["Company Name"] || row.Company
+        const packageAmount = row.Package || row.package || row["Package (LPA)"] || row.Salary
+        const yearOfPlacement =
+          row.YearOfPlacement || row.yearOfPlacement || row["Year of Placement"] || row.Year || new Date().getFullYear()
+        const department = row.Department || row.department
+        const jobRole = row.JobRole || row.jobRole || row["Job Role"] || row.Role || ""
+        const placementType = row.PlacementType || row.placementType || row["Placement Type"] || "campus"
+
         // Validate required fields
-        if (
-          !row.StudentID ||
-          !row.StudentName ||
-          !row.CompanyName ||
-          !row.Package ||
-          !row.YearOfPlacement ||
-          !row.Department ||
-          !row.JobRole
-        ) {
-          results.failed++
-          results.errors.push(`Row ${rowNumber}: Missing required fields`)
+        if (!studentId || !studentName || !companyName || !packageAmount) {
+          results.errors.push(`Row ${i + 2}: Missing required fields (StudentID, StudentName, CompanyName, Package)`)
           continue
         }
 
-        // Find student by StudentID
-        const student = await User.findOne({
-          userId: row.StudentID.toString().trim(),
-          role: "student",
-        })
-
+        // Validate student exists
+        const student = await User.findOne({ userId: studentId, role: "student" })
         if (!student) {
-          results.failed++
-          results.errors.push(`Row ${rowNumber}: Student with ID ${row.StudentID} not found`)
+          results.invalidStudents.push(`Row ${i + 2}: Invalid student ID ${studentId}`)
           continue
         }
 
-        // Validate student name matches
-        if (student.name.trim().toLowerCase() !== row.StudentName.toString().trim().toLowerCase()) {
-          results.failed++
-          results.errors.push(
-            `Row ${rowNumber}: Student name "${row.StudentName}" does not match database record "${student.name}" for ID ${row.StudentID}`,
-          )
-          continue
-        }
-
-        // Validate department matches
-        if (student.department.trim().toLowerCase() !== row.Department.toString().trim().toLowerCase()) {
-          results.failed++
-          results.errors.push(
-            `Row ${rowNumber}: Department "${row.Department}" does not match student's department "${student.department}" for ID ${row.StudentID}`,
-          )
-          continue
-        }
-
-        // Validate package is a number
-        const packageAmount = Number.parseFloat(row.Package)
-        if (isNaN(packageAmount) || packageAmount <= 0) {
-          results.failed++
-          results.errors.push(`Row ${rowNumber}: Invalid package amount "${row.Package}"`)
-          continue
-        }
-
-        // Validate year
-        const year = Number.parseInt(row.YearOfPlacement)
-        if (isNaN(year) || year < 2000 || year > new Date().getFullYear() + 5) {
-          results.failed++
-          results.errors.push(`Row ${rowNumber}: Invalid year "${row.YearOfPlacement}"`)
-          continue
-        }
-
-        // Check if placement already exists for this student
+        // Check if placement already exists for this student and year
         const existingPlacement = await Placement.findOne({
-          student: student._id,
-          companyName: row.CompanyName.toString().trim(),
-          yearOfPlacement: year,
+          studentId: studentId,
+          yearOfPlacement: Number(yearOfPlacement),
         })
 
         if (existingPlacement) {
           // Update existing placement
-          existingPlacement.jobRole = row.JobRole.toString().trim()
-          existingPlacement.packageAmount = packageAmount
+          existingPlacement.studentName = studentName
+          existingPlacement.companyName = companyName
+          existingPlacement.package = Number(packageAmount)
+          existingPlacement.department = department || student.department
+          existingPlacement.jobRole = jobRole
+          existingPlacement.placementType = placementType
+          existingPlacement.addedBy = req.user._id
+
           await existingPlacement.save()
+          results.updated++
         } else {
           // Create new placement
           const placement = new Placement({
-            student: student._id,
-            companyName: row.CompanyName.toString().trim(),
-            jobRole: row.JobRole.toString().trim(),
-            packageAmount: packageAmount,
-            yearOfPlacement: year,
+            studentId: studentId,
+            studentName: studentName,
+            companyName: companyName,
+            package: Number(packageAmount),
+            yearOfPlacement: Number(yearOfPlacement),
+            department: department || student.department,
+            jobRole: jobRole,
+            placementType: placementType,
+            addedBy: req.user._id,
           })
-          await placement.save()
-        }
 
-        results.successful++
+          await placement.save()
+          results.success++
+        }
       } catch (error) {
-        console.error(`Error processing row ${rowNumber}:`, error)
-        results.failed++
-        results.errors.push(`Row ${rowNumber}: ${error.message}`)
+        results.errors.push(`Row ${i + 2}: ${error.message}`)
       }
     }
 
     // Log activity
     await logActivity(
-      "placements_bulk_upload",
-      `Bulk placement upload: ${results.successful} successful, ${results.failed} failed`,
+      "placements_uploaded",
+      `${results.success} new and ${results.updated} updated placement records via Excel`,
       req.user._id,
       "Placement",
       null,
-      { successful: results.successful, failed: results.failed },
+      {
+        successCount: results.success,
+        updatedCount: results.updated,
+        errorCount: results.errors.length,
+        invalidStudentCount: results.invalidStudents.length,
+      },
     )
 
     res.json({
-      message: "Placement upload completed",
+      message: `Upload completed. ${results.success} new records added, ${results.updated} records updated.`,
       results,
     })
   } catch (error) {
     console.error("Upload placements error:", error)
-    res.status(500).json({ message: "Server error during file processing" })
+    res.status(500).json({ message: "Server error" })
   }
 })
 
