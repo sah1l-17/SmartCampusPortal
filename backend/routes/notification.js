@@ -1,0 +1,119 @@
+import express from "express"
+import Notification from "../models/Notification.js"
+import { authenticate } from "../middleware/auth.js"
+
+const router = express.Router()
+
+// Get notifications for user
+router.get("/", authenticate, async (req, res) => {
+  try {
+    const filter = { isActive: true }
+
+    // Filter based on recipients
+    if (req.user.role !== "admin") {
+      filter.$or = [
+        { recipients: "all" },
+        { recipients: req.user.role },
+        { recipients: "department", department: req.user.department },
+      ]
+    }
+
+    const notifications = await Notification.find(filter)
+      .populate("sender", "name role")
+      .sort({ createdAt: -1 })
+      .limit(50)
+
+    // Mark which notifications are read by this user
+    const notificationsWithReadStatus = notifications.map((notification) => {
+      const isRead = notification.readBy.some((read) => read.user.toString() === req.user._id.toString())
+
+      return {
+        ...notification.toObject(),
+        isRead,
+      }
+    })
+
+    res.json(notificationsWithReadStatus)
+  } catch (error) {
+    console.error("Get notifications error:", error)
+    res.status(500).json({ message: "Server error" })
+  }
+})
+
+// Mark notification as read
+router.patch("/:notificationId/read", authenticate, async (req, res) => {
+  try {
+    const { notificationId } = req.params
+
+    const notification = await Notification.findById(notificationId)
+    if (!notification) {
+      return res.status(404).json({ message: "Notification not found" })
+    }
+
+    // Check if already read
+    const alreadyRead = notification.readBy.some((read) => read.user.toString() === req.user._id.toString())
+
+    if (!alreadyRead) {
+      notification.readBy.push({ user: req.user._id })
+      await notification.save()
+    }
+
+    res.json({ message: "Notification marked as read" })
+  } catch (error) {
+    console.error("Mark notification as read error:", error)
+    res.status(500).json({ message: "Server error" })
+  }
+})
+
+// Get unread count
+router.get("/unread-count", authenticate, async (req, res) => {
+  try {
+    const filter = { isActive: true }
+
+    // Filter based on recipients
+    if (req.user.role !== "admin") {
+      filter.$or = [
+        { recipients: "all" },
+        { recipients: req.user.role },
+        { recipients: "department", department: req.user.department },
+      ]
+    }
+
+    const notifications = await Notification.find(filter)
+
+    const unreadCount = notifications.filter((notification) => {
+      return !notification.readBy.some((read) => read.user.toString() === req.user._id.toString())
+    }).length
+
+    res.json({ unreadCount })
+  } catch (error) {
+    console.error("Get unread count error:", error)
+    res.status(500).json({ message: "Server error" })
+  }
+})
+
+// Download notification attachment
+router.get("/:notificationId/attachments/:attachmentId/download", authenticate, async (req, res) => {
+  try {
+    const { notificationId, attachmentId } = req.params
+
+    const notification = await Notification.findById(notificationId)
+    if (!notification) {
+      return res.status(404).json({ message: "Notification not found" })
+    }
+
+    const attachment = notification.attachments.id(attachmentId)
+    if (!attachment) {
+      return res.status(404).json({ message: "Attachment not found" })
+    }
+
+    res.setHeader("Content-Disposition", `attachment; filename="${attachment.filename}"`)
+    res.setHeader("Content-Type", attachment.contentType)
+    res.send(attachment.data)
+  } catch (error) {
+    console.error("Download attachment error:", error)
+    res.status(500).json({ message: "Server error" })
+  }
+})
+
+export default router
