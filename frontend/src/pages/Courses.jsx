@@ -305,7 +305,12 @@ const CourseDetail = () => {
 
   const fetchCourseDetail = async () => {
     try {
-      const response = await axios.get(`/courses/${courseId}`)
+      let endpoint = `/courses/${courseId}`
+      if (user?.role === "admin") {
+        endpoint = `/admin/courses/${courseId}`
+      }
+
+      const response = await axios.get(endpoint)
       setCourse(response.data)
     } catch (error) {
       console.error("Fetch course detail error:", error)
@@ -328,55 +333,56 @@ const CourseDetail = () => {
     navigate(`/courses/${courseId}/attendance`)
   }
 
-const downloadMaterial = async (materialId, filename) => {
-  try {
-    // Determine the endpoint based on user role
-    let endpoint;
-    if (user?.role === "faculty") {
-      endpoint = `/faculty/courses/${courseId}/materials/${materialId}/download`;
-    } else if (user?.role === "admin") {
-      endpoint = `/admin/courses/${courseId}/materials/${materialId}/download`;
-    } else {
-      endpoint = `/student/courses/${courseId}/materials/${materialId}/download`;
+  const downloadMaterial = async (materialId, filename) => {
+    try {
+      // Determine the endpoint based on user role
+      let endpoint
+      if (user?.role === "faculty") {
+        endpoint = `/faculty/courses/${courseId}/materials/${materialId}/download`
+      } else if (user?.role === "admin") {
+        endpoint = `/admin/courses/${courseId}/materials/${materialId}/download`
+      } else {
+        endpoint = `/student/courses/${courseId}/materials/${materialId}/download`
+      }
+
+      const response = await axios.get(endpoint, {
+        responseType: "blob",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`, // Ensure auth token is sent
+        },
+      })
+
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement("a")
+      link.href = url
+      link.setAttribute("download", filename)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+
+      toast.success("Material downloaded successfully")
+    } catch (error) {
+      console.error("Download material error:", error)
+      toast.error(error.response?.data?.message || "Failed to download material")
     }
-
-    const response = await axios.get(endpoint, {
-      responseType: "blob",
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("token")}`, // Ensure auth token is sent
-      },
-    });
-
-    const url = window.URL.createObjectURL(new Blob([response.data]));
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", filename);
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(url);
-
-    toast.success("Material downloaded successfully");
-  } catch (error) {
-    console.error("Download material error:", error);
-    toast.error(
-      error.response?.data?.message || "Failed to download material"
-    );
   }
-};
+
   const downloadAssignmentAttachment = async (assignmentId, attachmentId, filename) => {
     try {
-      const endpoint =
-        user?.role === "faculty"
-          ? `/faculty/courses/${courseId}/assignments/${assignmentId}/attachments/${attachmentId}/download`
-          : `/student/courses/${courseId}/assignments/${assignmentId}/attachments/${attachmentId}/download`
-        
-        
+      let endpoint
+      if (user?.role === "faculty") {
+        endpoint = `/faculty/courses/${courseId}/assignments/${assignmentId}/attachments/${attachmentId}/download`
+      } else if (user?.role === "admin") {
+        endpoint = `/admin/courses/${courseId}/assignments/${assignmentId}/attachments/${attachmentId}/download`
+      } else {
+        endpoint = `/student/courses/${courseId}/assignments/${assignmentId}/attachments/${attachmentId}/download`
+      }
 
       const response = await axios.get(endpoint, {
         responseType: "blob",
       })
- 
+
       const url = window.URL.createObjectURL(new Blob([response.data]))
       const link = document.createElement("a")
       link.href = url

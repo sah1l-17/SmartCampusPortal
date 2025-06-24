@@ -124,26 +124,26 @@ const Dashboard = () => {
     }
   }
 
-const handleUpdateEventCapacity = async (eventId, newCapacity) => {
-  try {
-    const response = await axios.patch(`/admin/events/${eventId}/capacity`, { 
-      maxParticipants: Number(newCapacity) // Ensure it's sent as number
-    })
-    toast.success(response.data.message || "Event capacity updated successfully")
-    fetchAllEvents()
-  } catch (error) {
-    // Show the backend error message if available, otherwise generic message
-    const errorMessage = error.response?.data?.message || "Failed to update event capacity"
-    toast.error(errorMessage)
-    
-    // For debugging - log the full error
-    console.error("Capacity update error:", {
-      status: error.response?.status,
-      data: error.response?.data,
-      config: error.config
-    })
+  const handleUpdateEventCapacity = async (eventId, newCapacity) => {
+    try {
+      const response = await axios.patch(`/admin/events/${eventId}/capacity`, {
+        maxParticipants: Number(newCapacity), // Ensure it's sent as number
+      })
+      toast.success(response.data.message || "Event capacity updated successfully")
+      fetchAllEvents()
+    } catch (error) {
+      // Show the backend error message if available, otherwise generic message
+      const errorMessage = error.response?.data?.message || "Failed to update event capacity"
+      toast.error(errorMessage)
+
+      // For debugging - log the full error
+      console.error("Capacity update error:", {
+        status: error.response?.status,
+        data: error.response?.data,
+        config: error.config,
+      })
+    }
   }
-}
   if (loading) {
     return <LoadingSpinner text="Loading dashboard..." />
   }
@@ -717,7 +717,7 @@ const UserManagementModal = ({ onClose, onUpdate }) => {
   )
 }
 
-// Placement Upload Modal Component - UPDATED with better functionality
+// Placement Upload Modal Component - UPDATED with strict validation
 const PlacementUploadModal = ({ onClose }) => {
   const [file, setFile] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -780,7 +780,13 @@ const PlacementUploadModal = ({ onClose }) => {
       // Refresh placements data if needed
       window.location.reload()
     } catch (error) {
+      console.error("Upload error:", error)
       toast.error(error.response?.data?.message || "Upload failed")
+
+      // If there are validation errors, show them
+      if (error.response?.data?.results) {
+        setUploadResults(error.response.data.results)
+      }
     } finally {
       setLoading(false)
     }
@@ -829,14 +835,23 @@ const PlacementUploadModal = ({ onClose }) => {
                 className="input"
               />
               <div className="text-sm text-gray-600 bg-blue-50 p-3 rounded">
-                <p className="font-medium mb-2">Excel Format Requirements:</p>
-                <p>
-                  Required columns: <strong>StudentID, StudentName, CompanyName, Package</strong>
+                <p className="font-medium mb-2 text-red-600">STRICT Excel Format Requirements:</p>
+                <p className="font-semibold">
+                  Required columns (exact names):{" "}
+                  <span className="text-blue-700">
+                    StudentID, StudentName, CompanyName, Package, YearOfPlacement, Department, JobRole
+                  </span>
                 </p>
-                <p>Optional columns: YearOfPlacement, Department, JobRole, PlacementType</p>
-                <p className="mt-2">
-                  Alternative column names are supported (e.g., "Student ID", "Company Name", etc.)
+                <p className="mt-2 text-red-600">
+                  <strong>Important:</strong>
                 </p>
+                <ul className="list-disc list-inside mt-1 text-red-600">
+                  <li>Column names must match exactly (case-sensitive)</li>
+                  <li>StudentID must exist in the database</li>
+                  <li>StudentName must match the name in database exactly</li>
+                  <li>All columns are required (JobRole can be empty)</li>
+                  <li>Package and YearOfPlacement must be numbers</li>
+                </ul>
                 <p className="mt-2 text-blue-700">
                   <strong>Note:</strong> Existing records will be updated if found, new records will be created.
                 </p>
@@ -859,7 +874,7 @@ const PlacementUploadModal = ({ onClose }) => {
                 <p className="text-blue-600">✓ {uploadResults.updated} records updated</p>
                 {uploadResults.invalidStudents.length > 0 && (
                   <div className="mt-2">
-                    <p className="text-red-600">✗ {uploadResults.invalidStudents.length} invalid student IDs:</p>
+                    <p className="text-red-600">✗ {uploadResults.invalidStudents.length} invalid student records:</p>
                     <div className="max-h-32 overflow-y-auto text-sm text-red-600 mt-1">
                       {uploadResults.invalidStudents.map((error, index) => (
                         <p key={index}>• {error}</p>

@@ -566,21 +566,19 @@ router.get("/events/:eventId/registrations/download", authenticate, authorize("f
   }
 })
 
-// Download course material
+// Download course material - Faculty only
 router.get(
   "/courses/:courseId/materials/:materialId/download",
   authenticate,
-  authorize(["faculty", "admin"]),
+  authorize("faculty"),
   async (req, res) => {
     try {
       const { courseId, materialId } = req.params
 
-      const query = req.user.role === 'admin' 
-        ? { _id: courseId }
-        : { _id: courseId, faculty: req.user._id };
-
-
-      const course = await Course.findOne(query)
+      const course = await Course.findOne({
+        _id: courseId,
+        faculty: req.user._id,
+      })
 
       if (!course) {
         return res.status(404).json({ message: "Course not found" })
@@ -601,7 +599,7 @@ router.get(
   },
 )
 
-// Download assignment attachment
+// Download assignment attachment - Faculty only
 router.get(
   "/courses/:courseId/assignments/:assignmentId/attachments/:attachmentId/download",
   authenticate,
