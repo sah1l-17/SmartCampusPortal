@@ -805,7 +805,7 @@ const PlacementUploadModal = ({ onClose }) => {
     setLoading(true)
     try {
       await axios.post("/admin/placements", formData)
-      toast.success("Placement record added successfully")
+      toast.success("Placement record updated successfully")
       onClose()
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to add placement")

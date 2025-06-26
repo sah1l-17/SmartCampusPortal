@@ -298,7 +298,7 @@ router.get("/students/:studentId", authenticate, authorize("admin"), async (req,
   }
 })
 
-// Add single placement record
+// Add single placement record - UPDATED TO HANDLE EXISTING RECORDS
 router.post("/placements", authenticate, authorize("admin"), async (req, res) => {
   try {
     const {
@@ -320,11 +320,8 @@ router.post("/placements", authenticate, authorize("admin"), async (req, res) =>
 
     // Check if placement already exists for this student and year
     const existingPlacement = await Placement.findOne({ studentId, yearOfPlacement })
-    if (existingPlacement) {
-      return res.status(400).json({ message: "Placement record already exists for this student and year" })
-    }
 
-    const placement = new Placement({
+    const placementData = {
       studentId,
       studentName: studentName || student.name,
       companyName,
@@ -334,23 +331,39 @@ router.post("/placements", authenticate, authorize("admin"), async (req, res) =>
       jobRole,
       placementType,
       addedBy: req.user._id,
-    })
+    }
 
-    await placement.save()
+    let placement
+    let message
+    let activityDescription
+
+    if (existingPlacement) {
+      // Update existing placement
+      Object.assign(existingPlacement, placementData)
+      placement = await existingPlacement.save()
+      message = "Placement record updated successfully"
+      activityDescription = `Placement record updated for ${studentName} at ${companyName}`
+    } else {
+      // Create new placement
+      placement = new Placement(placementData)
+      await placement.save()
+      message = "Placement record added successfully"
+      activityDescription = `Placement record added for ${studentName} at ${companyName}`
+    }
 
     // Log activity
     await logActivity(
-      "placement_added",
-      `Placement record added for ${studentName} at ${companyName}`,
+      existingPlacement ? "placement_updated" : "placement_added",
+      activityDescription,
       req.user._id,
       "Placement",
       placement._id,
       { studentId, companyName, package: packageAmount },
     )
 
-    res.status(201).json({ message: "Placement record added successfully", placement })
+    res.status(201).json({ message, placement })
   } catch (error) {
-    console.error("Add placement error:", error)
+    console.error("Add/Update placement error:", error)
     res.status(500).json({ message: "Server error" })
   }
 })
@@ -573,6 +586,8 @@ router.post("/broadcast", authenticate, authorize("admin"), upload.array("attach
   try {
     const { title, message, type, recipients, priority, department } = req.body
 
+    console.log("Broadcasting notification:", { title, recipients, type, priority })
+
     const notification = new Notification({
       title,
       message,
@@ -603,6 +618,7 @@ router.post("/broadcast", authenticate, authorize("admin"), upload.array("attach
       { recipients, type, priority },
     )
 
+    console.log("Notification saved successfully:", notification._id)
     res.json({ message: "Notification broadcasted successfully" })
   } catch (error) {
     console.error("Broadcast notification error:", error)

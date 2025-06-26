@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useAuth } from "../contexts/AuthContext"
-import { Bell, AlertCircle, Info, Calendar, TrendingUp, Download, Paperclip } from "lucide-react"
+import { Bell, AlertCircle, Info, Calendar, TrendingUp, Download, Paperclip, X, Eye } from "lucide-react"
 import axios from "axios"
 import toast from "react-hot-toast"
 import LoadingSpinner from "../components/LoadingSpinner"
@@ -11,6 +11,8 @@ const Notifications = () => {
   const { user } = useAuth()
   const [notifications, setNotifications] = useState([])
   const [loading, setLoading] = useState(true)
+  const [selectedNotification, setSelectedNotification] = useState(null)
+  const [showModal, setShowModal] = useState(false)
 
   useEffect(() => {
     fetchNotifications()
@@ -19,6 +21,7 @@ const Notifications = () => {
   const fetchNotifications = async () => {
     try {
       const response = await axios.get("/notifications")
+      console.log("Fetched notifications:", response.data.length)
       setNotifications(response.data)
     } catch (error) {
       console.error("Fetch notifications error:", error)
@@ -37,6 +40,19 @@ const Notifications = () => {
     } catch (error) {
       console.error("Mark as read error:", error)
     }
+  }
+
+  const openNotificationModal = (notification) => {
+    setSelectedNotification(notification)
+    setShowModal(true)
+    if (!notification.isRead) {
+      markAsRead(notification._id)
+    }
+  }
+
+  const closeModal = () => {
+    setShowModal(false)
+    setSelectedNotification(null)
   }
 
   const downloadAttachment = async (notificationId, attachmentId, filename) => {
@@ -89,6 +105,19 @@ const Notifications = () => {
     }
   }
 
+  const getPriorityBadgeColor = (priority) => {
+    switch (priority) {
+      case "urgent":
+        return "bg-red-100 text-red-800"
+      case "high":
+        return "bg-orange-100 text-orange-800"
+      case "medium":
+        return "bg-blue-100 text-blue-800"
+      default:
+        return "bg-gray-100 text-gray-800"
+    }
+  }
+
   if (loading) {
     return <LoadingSpinner text="Loading notifications..." />
   }
@@ -100,16 +129,19 @@ const Notifications = () => {
           <h1 className="text-2xl font-bold text-gray-900">Notifications</h1>
           <p className="text-gray-600">Stay updated with latest announcements</p>
         </div>
+        <div className="text-sm text-gray-500">
+          {notifications.filter((n) => !n.isRead).length} unread notifications
+        </div>
       </div>
 
       <div className="space-y-4">
         {notifications.map((notification) => (
           <div
             key={notification._id}
-            className={`card p-4 border-l-4 cursor-pointer transition-all ${getPriorityColor(
+            className={`card p-4 border-l-4 cursor-pointer transition-all hover:shadow-md ${getPriorityColor(
               notification.priority,
-            )} ${!notification.isRead ? "shadow-md" : "opacity-75"}`}
-            onClick={() => !notification.isRead && markAsRead(notification._id)}
+            )} ${!notification.isRead ? "shadow-md ring-1 ring-blue-200" : "opacity-75"}`}
+            onClick={() => openNotificationModal(notification)}
           >
             <div className="flex items-start space-x-3">
               <div className="flex-shrink-0 mt-1">{getNotificationIcon(notification.type)}</div>
@@ -117,16 +149,26 @@ const Notifications = () => {
               <div className="flex-1 min-w-0">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <h3 className={`text-sm font-medium ${!notification.isRead ? "text-gray-900" : "text-gray-700"}`}>
-                      {notification.title}
-                    </h3>
-                    <p className={`mt-1 text-sm ${!notification.isRead ? "text-gray-700" : "text-gray-600"}`}>
+                    <div className="flex items-center space-x-2 mb-1">
+                      <h3 className={`text-sm font-medium ${!notification.isRead ? "text-gray-900" : "text-gray-700"}`}>
+                        {notification.title}
+                      </h3>
+                      {!notification.isRead && <div className="w-2 h-2 bg-blue-500 rounded-full"></div>}
+                      <span
+                        className={`px-2 py-1 text-xs font-semibold rounded-full ${getPriorityBadgeColor(notification.priority)}`}
+                      >
+                        {notification.priority}
+                      </span>
+                    </div>
+                    <p className={`text-sm line-clamp-2 ${!notification.isRead ? "text-gray-700" : "text-gray-600"}`}>
                       {notification.message}
                     </p>
                   </div>
 
-                  <div className="flex flex-col items-end space-y-1">
-                    {!notification.isRead && <div className="w-2 h-2 bg-blue-500 rounded-full"></div>}
+                  <div className="flex flex-col items-end space-y-1 ml-4">
+                    <button className="p-1 hover:bg-gray-100 rounded">
+                      <Eye className="h-4 w-4 text-gray-400" />
+                    </button>
                     <span className="text-xs text-gray-500">
                       {new Date(notification.createdAt).toLocaleDateString()}
                     </span>
@@ -135,35 +177,15 @@ const Notifications = () => {
 
                 <div className="mt-2 flex items-center space-x-4 text-xs text-gray-500">
                   <span className="capitalize">{notification.type}</span>
-                  <span className="capitalize">{notification.priority} priority</span>
                   <span>By {notification.sender?.name}</span>
                   {notification.department && <span>{notification.department} Dept.</span>}
+                  {notification.attachments && notification.attachments.length > 0 && (
+                    <span className="flex items-center">
+                      <Paperclip className="h-3 w-3 mr-1" />
+                      {notification.attachments.length} attachment{notification.attachments.length > 1 ? "s" : ""}
+                    </span>
+                  )}
                 </div>
-
-                {/* Attachments */}
-                {notification.attachments && notification.attachments.length > 0 && (
-                  <div className="mt-3">
-                    <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center">
-                      <Paperclip className="h-4 w-4 mr-1" />
-                      Attachments:
-                    </h4>
-                    <div className="space-y-1">
-                      {notification.attachments.map((attachment) => (
-                        <button
-                          key={attachment._id}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            downloadAttachment(notification._id, attachment._id, attachment.filename)
-                          }}
-                          className="text-sm text-blue-600 hover:text-blue-800 flex items-center"
-                        >
-                          <Download className="h-3 w-3 mr-1" />
-                          {attachment.filename}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -175,6 +197,82 @@ const Notifications = () => {
           <Bell className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No notifications</h3>
           <p className="text-gray-600">You're all caught up!</p>
+        </div>
+      )}
+
+      {/* Notification Detail Modal */}
+      {showModal && selectedNotification && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                {getNotificationIcon(selectedNotification.type)}
+                <h2 className="text-xl font-bold text-gray-900">{selectedNotification.title}</h2>
+                <span
+                  className={`px-2 py-1 text-xs font-semibold rounded-full ${getPriorityBadgeColor(selectedNotification.priority)}`}
+                >
+                  {selectedNotification.priority}
+                </span>
+              </div>
+              <button onClick={closeModal} className="p-2 hover:bg-gray-100 rounded">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-6">
+              <div className="mb-4">
+                <div className="flex items-center space-x-4 text-sm text-gray-500 mb-3">
+                  <span className="capitalize">{selectedNotification.type}</span>
+                  <span>By {selectedNotification.sender?.name}</span>
+                  <span>{new Date(selectedNotification.createdAt).toLocaleString()}</span>
+                  {selectedNotification.department && <span>{selectedNotification.department} Dept.</span>}
+                </div>
+              </div>
+
+              <div className="prose max-w-none mb-6">
+                <div className="text-gray-700 whitespace-pre-wrap leading-relaxed">{selectedNotification.message}</div>
+              </div>
+
+              {/* Attachments */}
+              {selectedNotification.attachments && selectedNotification.attachments.length > 0 && (
+                <div className="border-t pt-4">
+                  <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
+                    <Paperclip className="h-4 w-4 mr-2" />
+                    Attachments ({selectedNotification.attachments.length})
+                  </h4>
+                  <div className="space-y-2">
+                    {selectedNotification.attachments.map((attachment) => (
+                      <div key={attachment._id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div className="flex items-center space-x-3">
+                          <Paperclip className="h-4 w-4 text-gray-400" />
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{attachment.filename}</p>
+                            <p className="text-xs text-gray-500">{(attachment.size / 1024 / 1024).toFixed(2)} MB</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            downloadAttachment(selectedNotification._id, attachment._id, attachment.filename)
+                          }}
+                          className="btn btn-outline btn-sm flex items-center"
+                        >
+                          <Download className="h-3 w-3 mr-1" />
+                          Download
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="sticky bottom-0 bg-gray-50 px-6 py-4 flex justify-end">
+              <button onClick={closeModal} className="btn btn-primary">
+                Close
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
