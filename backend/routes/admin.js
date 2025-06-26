@@ -581,18 +581,26 @@ router.post("/placements/upload", authenticate, authorize("admin"), upload.singl
   }
 })
 
-// Broadcast notification
+// Broadcast notification - UPDATED WITH BETTER RECIPIENT HANDLING
 router.post("/broadcast", authenticate, authorize("admin"), upload.array("attachments", 5), async (req, res) => {
   try {
     const { title, message, type, recipients, priority, department } = req.body
 
     console.log("Broadcasting notification:", { title, recipients, type, priority })
 
+    // Normalize recipients value
+    let normalizedRecipients = recipients
+    if (recipients === "students") {
+      normalizedRecipients = "students" // Keep as is for students
+    } else if (recipients === "faculty") {
+      normalizedRecipients = "faculty" // Keep as is for faculty
+    }
+
     const notification = new Notification({
       title,
       message,
       type,
-      recipients,
+      recipients: normalizedRecipients,
       priority,
       department: recipients === "department" ? department : undefined,
       sender: req.user._id,

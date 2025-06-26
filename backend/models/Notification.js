@@ -21,7 +21,7 @@ const notificationSchema = new mongoose.Schema({
   },
   recipients: {
     type: String,
-    enum: ["all", "students", "faculty", "department"],
+    enum: ["all", "students", "faculty", "department", "student", "admin"], // Added both singular and plural forms
     default: "all",
   },
   department: String,

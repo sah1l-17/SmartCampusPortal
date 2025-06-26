@@ -1061,7 +1061,7 @@ const PendingEventsModal = ({ events, onClose, onApprove }) => {
   )
 }
 
-// Broadcast Form Component
+// Broadcast Form Component - UPDATED WITH BETTER RECIPIENT HANDLING
 const BroadcastForm = ({ onClose }) => {
   const [formData, setFormData] = useState({
     title: "",
@@ -1069,6 +1069,7 @@ const BroadcastForm = ({ onClose }) => {
     type: "general",
     recipients: "all",
     priority: "medium",
+    department: "",
   })
   const [files, setFiles] = useState([])
   const [loading, setLoading] = useState(false)
@@ -1150,6 +1151,7 @@ const BroadcastForm = ({ onClose }) => {
                 <option value="general">General</option>
                 <option value="academic">Academic</option>
                 <option value="event">Event</option>
+                <option value="placement">Placement</option>
                 <option value="alert">Alert</option>
               </select>
             </div>
@@ -1181,8 +1183,27 @@ const BroadcastForm = ({ onClose }) => {
               <option value="all">All Users</option>
               <option value="students">Students Only</option>
               <option value="faculty">Faculty Only</option>
+              <option value="department">Specific Department</option>
             </select>
           </div>
+
+          {formData.recipients === "department" && (
+            <div className="form-group">
+              <label className="form-label">Department</label>
+              <select
+                className="input"
+                value={formData.department}
+                onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                required
+                disabled={loading}
+              >
+                <option value="">Select Department</option>
+                <option value="Computer Science">Computer Science</option>
+                <option value="Information Technology">Information Technology</option>
+                <option value="Biomedical">Biomedical</option>
+              </select>
+            </div>
+          )}
 
           <div className="form-group">
             <label className="form-label">Attachments (Optional, Max 50MB each)</label>

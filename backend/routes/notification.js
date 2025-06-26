@@ -14,8 +14,18 @@ router.get("/", authenticate, async (req, res) => {
       isActive: true,
       $or: [
         { recipients: "all" },
-        { recipients: req.user.role }, // This will match "students", "faculty", etc.
+        // Handle both singular and plural forms
+        { recipients: req.user.role }, // "student", "faculty", "admin"
+        { recipients: req.user.role + "s" }, // "students", "facultys" (though facultys isn't used)
       ],
+    }
+
+    // Add specific mappings for common cases
+    if (req.user.role === "student") {
+      filter.$or.push({ recipients: "students" })
+    }
+    if (req.user.role === "faculty") {
+      filter.$or.push({ recipients: "faculty" }) // faculty is both singular and plural
     }
 
     // Add department filter if notification is for specific department
@@ -82,15 +92,25 @@ router.patch("/:notificationId/read", authenticate, async (req, res) => {
 // Get unread count
 router.get("/unread-count", authenticate, async (req, res) => {
   try {
-    const filter = { isActive: true }
+    const filter = {
+      isActive: true,
+      $or: [{ recipients: "all" }, { recipients: req.user.role }, { recipients: req.user.role + "s" }],
+    }
 
-    // Filter based on recipients
-    if (req.user.role !== "admin") {
-      filter.$or = [
-        { recipients: "all" },
-        { recipients: req.user.role },
-        { recipients: "department", department: req.user.department },
-      ]
+    // Add specific mappings for common cases
+    if (req.user.role === "student") {
+      filter.$or.push({ recipients: "students" })
+    }
+    if (req.user.role === "faculty") {
+      filter.$or.push({ recipients: "faculty" })
+    }
+
+    // Add department filter
+    if (req.user.department) {
+      filter.$or.push({
+        recipients: "department",
+        department: req.user.department,
+      })
     }
 
     const notifications = await Notification.find(filter)
