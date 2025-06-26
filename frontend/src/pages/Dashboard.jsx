@@ -717,7 +717,7 @@ const UserManagementModal = ({ onClose, onUpdate }) => {
   )
 }
 
-// Placement Upload Modal Component - UPDATED with strict validation
+// Placement Upload Modal Component - COMPLETELY REWRITTEN WITH BETTER ERROR HANDLING
 const PlacementUploadModal = ({ onClose }) => {
   const [file, setFile] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -774,14 +774,18 @@ const PlacementUploadModal = ({ onClose }) => {
       const response = await axios.post("/admin/placements/upload", uploadData, {
         headers: { "Content-Type": "multipart/form-data" },
       })
+
       setUploadResults(response.data.results)
       toast.success(response.data.message)
 
-      // Refresh placements data if needed
-      window.location.reload()
+      // Show detailed results
+      if (response.data.results.errors.length > 0) {
+        console.log("Upload errors:", response.data.results.errors)
+      }
     } catch (error) {
       console.error("Upload error:", error)
-      toast.error(error.response?.data?.message || "Upload failed")
+      const errorMessage = error.response?.data?.message || "Upload failed"
+      toast.error(errorMessage)
 
       // If there are validation errors, show them
       if (error.response?.data?.results) {
@@ -803,9 +807,6 @@ const PlacementUploadModal = ({ onClose }) => {
       await axios.post("/admin/placements", formData)
       toast.success("Placement record added successfully")
       onClose()
-
-      // Refresh placements data
-      window.location.reload()
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to add placement")
     } finally {
@@ -835,26 +836,38 @@ const PlacementUploadModal = ({ onClose }) => {
                 className="input"
               />
               <div className="text-sm text-gray-600 bg-blue-50 p-3 rounded">
-                <p className="font-medium mb-2 text-red-600">STRICT Excel Format Requirements:</p>
-                <p className="font-semibold">
-                  Required columns (exact names):{" "}
-                  <span className="text-blue-700">
-                    StudentID, StudentName, CompanyName, Package, YearOfPlacement, Department, JobRole
-                  </span>
+                <p className="font-medium mb-2 text-blue-800">Excel Format Requirements:</p>
+                <p className="font-semibold text-blue-700">
+                  Required columns: StudentID, StudentName, CompanyName, Package, YearOfPlacement, Department, JobRole
                 </p>
-                <p className="mt-2 text-red-600">
-                  <strong>Important:</strong>
-                </p>
-                <ul className="list-disc list-inside mt-1 text-red-600">
-                  <li>Column names must match exactly (case-sensitive)</li>
-                  <li>StudentID must exist in the database</li>
-                  <li>StudentName must match the name in database exactly</li>
-                  <li>All columns are required (JobRole can be empty)</li>
-                  <li>Package and YearOfPlacement must be numbers</li>
-                </ul>
-                <p className="mt-2 text-blue-700">
-                  <strong>Note:</strong> Existing records will be updated if found, new records will be created.
-                </p>
+                <div className="mt-2 text-blue-600">
+                  <p>
+                    <strong>Column Variations Supported:</strong>
+                  </p>
+                  <ul className="list-disc list-inside mt-1 text-sm">
+                    <li>StudentID: StudentID, studentId, student_id, STUDENTID</li>
+                    <li>StudentName: StudentName, studentName, student_name, STUDENTNAME</li>
+                    <li>CompanyName: CompanyName, companyName, company_name, COMPANYNAME, Company</li>
+                    <li>Package: Package, package, PACKAGE, Salary, salary</li>
+                    <li>
+                      YearOfPlacement: YearOfPlacement, yearOfPlacement, year_of_placement, YEAROFPLACEMENT, Year, year
+                    </li>
+                    <li>Department: Department, department, DEPARTMENT</li>
+                    <li>JobRole: JobRole, jobRole, job_role, JOBROLE, Role, role</li>
+                  </ul>
+                </div>
+                <div className="mt-2 text-red-600">
+                  <p>
+                    <strong>Validation Rules:</strong>
+                  </p>
+                  <ul className="list-disc list-inside mt-1 text-sm">
+                    <li>StudentID must exist in the database</li>
+                    <li>StudentName must match exactly with database</li>
+                    <li>Department must match if provided</li>
+                    <li>Package must be a valid number</li>
+                    <li>Year must be between 2000 and current year + 5</li>
+                  </ul>
+                </div>
               </div>
               <button
                 onClick={handleFileUpload}
@@ -870,28 +883,24 @@ const PlacementUploadModal = ({ onClose }) => {
             {uploadResults && (
               <div className="mt-4 p-4 bg-gray-50 rounded">
                 <h4 className="font-medium text-gray-900 mb-2">Upload Results:</h4>
-                <p className="text-green-600">✓ {uploadResults.success} new records added</p>
-                <p className="text-blue-600">✓ {uploadResults.updated} records updated</p>
-                {uploadResults.invalidStudents.length > 0 && (
-                  <div className="mt-2">
-                    <p className="text-red-600">✗ {uploadResults.invalidStudents.length} invalid student records:</p>
-                    <div className="max-h-32 overflow-y-auto text-sm text-red-600 mt-1">
-                      {uploadResults.invalidStudents.map((error, index) => (
-                        <p key={index}>• {error}</p>
-                      ))}
+                <div className="space-y-2">
+                  <p className="text-green-600">✓ {uploadResults.success} new records added</p>
+                  <p className="text-blue-600">✓ {uploadResults.updated} records updated</p>
+                  <p className="text-gray-600">📊 {uploadResults.totalProcessed} total rows processed</p>
+
+                  {uploadResults.errors && uploadResults.errors.length > 0 && (
+                    <div className="mt-3">
+                      <p className="text-red-600 font-medium">❌ {uploadResults.errors.length} errors found:</p>
+                      <div className="max-h-40 overflow-y-auto text-sm text-red-600 mt-2 bg-red-50 p-2 rounded">
+                        {uploadResults.errors.map((error, index) => (
+                          <p key={index} className="mb-1">
+                            • {error}
+                          </p>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
-                {uploadResults.errors.length > 0 && (
-                  <div className="mt-2">
-                    <p className="text-red-600">✗ {uploadResults.errors.length} other errors:</p>
-                    <div className="max-h-32 overflow-y-auto text-sm text-red-600 mt-1">
-                      {uploadResults.errors.map((error, index) => (
-                        <p key={index}>• {error}</p>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             )}
           </div>

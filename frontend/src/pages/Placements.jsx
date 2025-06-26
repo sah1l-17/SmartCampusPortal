@@ -177,7 +177,7 @@ const Placements = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{placement.companyName}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₹{placement.package}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{placement.package}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{placement.department}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{placement.yearOfPlacement}</td>
                 </tr>

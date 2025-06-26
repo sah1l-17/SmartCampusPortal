@@ -132,8 +132,8 @@ router.patch("/events/:eventId/capacity", authenticate, authorize("admin"), asyn
     // Check if new capacity is less than current registrations
     const currentRegistrations = event.registeredStudents.length
     if (maxParticipants < currentRegistrations) {
-      return res.status(400).json({ 
-        message: `Cannot set capacity below current registrations (${currentRegistrations} students already registered)`
+      return res.status(400).json({
+        message: `Cannot set capacity below current registrations (${currentRegistrations} students already registered)`,
       })
     }
 
@@ -141,7 +141,7 @@ router.patch("/events/:eventId/capacity", authenticate, authorize("admin"), asyn
     const updatedEvent = await Event.findByIdAndUpdate(
       eventId,
       { maxParticipants: Number(maxParticipants) },
-      { new: true }
+      { new: true },
     )
 
     // Log activity
@@ -160,6 +160,7 @@ router.patch("/events/:eventId/capacity", authenticate, authorize("admin"), asyn
     res.status(500).json({ message: "Server error" })
   }
 })
+
 // Get users with filtering
 router.get("/users", authenticate, authorize("admin"), async (req, res) => {
   try {
@@ -354,96 +355,176 @@ router.post("/placements", authenticate, authorize("admin"), async (req, res) =>
   }
 })
 
-// Upload placements via Excel - UPDATED with better validation and upsert functionality
+// Upload placements via Excel - COMPLETELY REWRITTEN WITH PROPER VALIDATION
 router.post("/placements/upload", authenticate, authorize("admin"), upload.single("file"), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ message: "No file uploaded" })
     }
 
+    console.log("Processing Excel file upload...")
+
     const workbook = xlsx.read(req.file.buffer, { type: "buffer" })
     const sheetName = workbook.SheetNames[0]
     const worksheet = workbook.Sheets[sheetName]
     const data = xlsx.utils.sheet_to_json(worksheet)
+
+    console.log("Excel data parsed:", data.length, "rows found")
+    console.log("Sample row:", data[0])
 
     const results = {
       success: 0,
       updated: 0,
       errors: [],
       invalidStudents: [],
+      validationErrors: [],
+    }
+
+    // Required columns mapping (case-insensitive)
+    const requiredColumns = {
+      studentid: ["StudentID", "studentId", "student_id", "STUDENTID"],
+      studentname: ["StudentName", "studentName", "student_name", "STUDENTNAME"],
+      companyname: ["CompanyName", "companyName", "company_name", "COMPANYNAME", "Company"],
+      package: ["Package", "package", "PACKAGE", "Salary", "salary"],
+      yearofplacement: ["YearOfPlacement", "yearOfPlacement", "year_of_placement", "YEAROFPLACEMENT", "Year", "year"],
+      department: ["Department", "department", "DEPARTMENT"],
+      jobrole: ["JobRole", "jobRole", "job_role", "JOBROLE", "Role", "role"],
+    }
+
+    // Function to find column value by multiple possible names
+    const getColumnValue = (row, columnNames) => {
+      for (const name of columnNames) {
+        if (row[name] !== undefined && row[name] !== null && row[name] !== "") {
+          return row[name]
+        }
+      }
+      return null
     }
 
     for (let i = 0; i < data.length; i++) {
       const row = data[i]
+      const rowNumber = i + 2 // Excel row number (accounting for header)
+
       try {
-        // Handle different possible column names
-        const studentId = row.StudentID || row.studentId || row["Student ID"] || row["Student Id"]
-        const studentName = row.StudentName || row.studentName || row["Student Name"]
-        const companyName = row.CompanyName || row.companyName || row["Company Name"] || row.Company
-        const packageAmount = row.Package || row.package || row["Package (LPA)"] || row.Salary
-        const yearOfPlacement =
-          row.YearOfPlacement || row.yearOfPlacement || row["Year of Placement"] || row.Year || new Date().getFullYear()
-        const department = row.Department || row.department
-        const jobRole = row.JobRole || row.jobRole || row["Job Role"] || row.Role || ""
-        const placementType = row.PlacementType || row.placementType || row["Placement Type"] || "campus"
+        console.log(`Processing row ${rowNumber}:`, row)
+
+        // Extract values using flexible column mapping
+        const studentId = getColumnValue(row, requiredColumns.studentid)
+        const studentName = getColumnValue(row, requiredColumns.studentname)
+        const companyName = getColumnValue(row, requiredColumns.companyname)
+        const packageAmount = getColumnValue(row, requiredColumns.package)
+        const yearOfPlacement = getColumnValue(row, requiredColumns.yearofplacement)
+        const department = getColumnValue(row, requiredColumns.department)
+        const jobRole = getColumnValue(row, requiredColumns.jobrole) || ""
+
+        console.log(`Row ${rowNumber} extracted values:`, {
+          studentId,
+          studentName,
+          companyName,
+          packageAmount,
+          yearOfPlacement,
+          department,
+          jobRole,
+        })
 
         // Validate required fields
         if (!studentId || !studentName || !companyName || !packageAmount) {
-          results.errors.push(`Row ${i + 2}: Missing required fields (StudentID, StudentName, CompanyName, Package)`)
+          results.validationErrors.push(
+            `Row ${rowNumber}: Missing required fields. Found - StudentID: ${studentId}, StudentName: ${studentName}, CompanyName: ${companyName}, Package: ${packageAmount}`,
+          )
           continue
         }
 
-        // Validate student exists
-        const student = await User.findOne({ userId: studentId, role: "student" })
-        if (!student) {
-          results.invalidStudents.push(`Row ${i + 2}: Invalid student ID ${studentId}`)
+        // Convert and validate data types
+        const numericPackage = Number(packageAmount)
+        const numericYear = yearOfPlacement ? Number(yearOfPlacement) : new Date().getFullYear()
+
+        if (isNaN(numericPackage) || numericPackage <= 0) {
+          results.validationErrors.push(`Row ${rowNumber}: Invalid package amount: ${packageAmount}`)
           continue
+        }
+
+        if (isNaN(numericYear) || numericYear < 2000 || numericYear > new Date().getFullYear() + 5) {
+          results.validationErrors.push(`Row ${rowNumber}: Invalid year: ${yearOfPlacement}`)
+          continue
+        }
+
+        // Validate student exists in database
+        const student = await User.findOne({
+          userId: String(studentId).trim(),
+          role: "student",
+        })
+
+        if (!student) {
+          results.invalidStudents.push(`Row ${rowNumber}: Student ID ${studentId} not found in database`)
+          continue
+        }
+
+        // Validate student name matches (case-insensitive, trimmed)
+        const dbStudentName = student.name.trim().toLowerCase()
+        const excelStudentName = String(studentName).trim().toLowerCase()
+
+        if (dbStudentName !== excelStudentName) {
+          results.invalidStudents.push(
+            `Row ${rowNumber}: Student name mismatch for ID ${studentId}. Database: "${student.name}", Excel: "${studentName}"`,
+          )
+          continue
+        }
+
+        // Validate department if provided
+        if (department) {
+          const dbDepartment = student.department.trim().toLowerCase()
+          const excelDepartment = String(department).trim().toLowerCase()
+
+          if (dbDepartment !== excelDepartment) {
+            results.invalidStudents.push(
+              `Row ${rowNumber}: Department mismatch for student ${studentId}. Database: "${student.department}", Excel: "${department}"`,
+            )
+            continue
+          }
         }
 
         // Check if placement already exists for this student and year
         const existingPlacement = await Placement.findOne({
-          studentId: studentId,
-          yearOfPlacement: Number(yearOfPlacement),
+          studentId: String(studentId).trim(),
+          yearOfPlacement: numericYear,
         })
+
+        const placementData = {
+          studentId: String(studentId).trim(),
+          studentName: String(studentName).trim(),
+          companyName: String(companyName).trim(),
+          package: numericPackage,
+          yearOfPlacement: numericYear,
+          department: department ? String(department).trim() : student.department,
+          jobRole: jobRole ? String(jobRole).trim() : "",
+          placementType: "campus", // Default value
+          addedBy: req.user._id,
+        }
 
         if (existingPlacement) {
           // Update existing placement
-          existingPlacement.studentName = studentName
-          existingPlacement.companyName = companyName
-          existingPlacement.package = Number(packageAmount)
-          existingPlacement.department = department || student.department
-          existingPlacement.jobRole = jobRole
-          existingPlacement.placementType = placementType
-          existingPlacement.addedBy = req.user._id
-
+          Object.assign(existingPlacement, placementData)
           await existingPlacement.save()
           results.updated++
+          console.log(`Row ${rowNumber}: Updated existing placement for ${studentId}`)
         } else {
           // Create new placement
-          const placement = new Placement({
-            studentId: studentId,
-            studentName: studentName,
-            companyName: companyName,
-            package: Number(packageAmount),
-            yearOfPlacement: Number(yearOfPlacement),
-            department: department || student.department,
-            jobRole: jobRole,
-            placementType: placementType,
-            addedBy: req.user._id,
-          })
-
+          const placement = new Placement(placementData)
           await placement.save()
           results.success++
+          console.log(`Row ${rowNumber}: Created new placement for ${studentId}`)
         }
       } catch (error) {
-        results.errors.push(`Row ${i + 2}: ${error.message}`)
+        console.error(`Error processing row ${rowNumber}:`, error)
+        results.errors.push(`Row ${rowNumber}: ${error.message}`)
       }
     }
 
     // Log activity
     await logActivity(
       "placements_uploaded",
-      `${results.success} new and ${results.updated} updated placement records via Excel`,
+      `Excel upload completed: ${results.success} new, ${results.updated} updated, ${results.errors.length + results.invalidStudents.length + results.validationErrors.length} errors`,
       req.user._id,
       "Placement",
       null,
@@ -452,16 +533,38 @@ router.post("/placements/upload", authenticate, authorize("admin"), upload.singl
         updatedCount: results.updated,
         errorCount: results.errors.length,
         invalidStudentCount: results.invalidStudents.length,
+        validationErrorCount: results.validationErrors.length,
       },
     )
 
+    // Combine all errors for response
+    const allErrors = [...results.validationErrors, ...results.invalidStudents, ...results.errors]
+
+    console.log("Upload results:", results)
+
     res.json({
       message: `Upload completed. ${results.success} new records added, ${results.updated} records updated.`,
-      results,
+      results: {
+        success: results.success,
+        updated: results.updated,
+        errors: allErrors,
+        totalProcessed: data.length,
+        totalErrors: allErrors.length,
+      },
     })
   } catch (error) {
     console.error("Upload placements error:", error)
-    res.status(500).json({ message: "Server error" })
+    res.status(500).json({
+      message: "Server error during upload",
+      error: error.message,
+      results: {
+        success: 0,
+        updated: 0,
+        errors: [`Server error: ${error.message}`],
+        totalProcessed: 0,
+        totalErrors: 1,
+      },
+    })
   }
 })
 
@@ -506,6 +609,5 @@ router.post("/broadcast", authenticate, authorize("admin"), upload.array("attach
     res.status(500).json({ message: "Server error" })
   }
 })
-
 
 export default router
