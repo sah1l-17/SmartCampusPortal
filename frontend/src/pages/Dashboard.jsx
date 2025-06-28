@@ -497,20 +497,26 @@ const EventManagementModal = ({ events, onClose, onUpdateCapacity }) => {
   )
 }
 
-// Course Management Modal Component
+// Course Management Modal Component - UPDATED WITH DEPARTMENT FILTER
 const CourseManagementModal = ({ onClose }) => {
   const [courses, setCourses] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedCourse, setSelectedCourse] = useState(null)
+  const [departmentFilter, setDepartmentFilter] = useState("all")
 
   useEffect(() => {
     fetchCourses()
-  }, [])
+  }, [departmentFilter])
 
   const fetchCourses = async () => {
     try {
       setLoading(true)
-      const response = await axios.get("/admin/courses")
+      const params = {}
+      if (departmentFilter !== "all") {
+        params.department = departmentFilter
+      }
+      
+      const response = await axios.get("/admin/courses", { params })
       setCourses(response.data)
     } catch (error) {
       toast.error("Failed to fetch courses")
@@ -529,22 +535,74 @@ const CourseManagementModal = ({ onClose }) => {
           </button>
         </div>
 
+        {/* Department Filter */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 mb-2">Filter by Department</label>
+          <select
+            value={departmentFilter}
+            onChange={(e) => setDepartmentFilter(e.target.value)}
+            className="input max-w-xs"
+          >
+            <option value="all">All Departments</option>
+            <option value="Computer Science">Computer Science</option>
+            <option value="Information Technology">Information Technology</option>
+            <option value="Biomedical">Biomedical</option>
+            <option value="Electronics and Communication">Electronics and Communication</option>
+            <option value="Mechanical">Mechanical</option>
+            <option value="Civil">Civil</option>
+          </select>
+        </div>
+
         {loading ? (
           <LoadingSpinner />
         ) : (
           <div className="space-y-4">
+            {/* Course Statistics */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <div className="card p-4">
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-blue-600">{courses.length}</p>
+                  <p className="text-sm text-gray-600">
+                    {departmentFilter === "all" ? "Total Courses" : `${departmentFilter} Courses`}
+                  </p>
+                </div>
+              </div>
+              <div className="card p-4">
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-green-600">
+                    {courses.reduce((acc, course) => acc + course.enrolledStudents.length, 0)}
+                  </p>
+                  <p className="text-sm text-gray-600">Total Enrollments</p>
+                </div>
+              </div>
+              <div className="card p-4">
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-purple-600">
+                    {[...new Set(courses.map(course => course.faculty._id))].length}
+                  </p>
+                  <p className="text-sm text-gray-600">Active Faculty</p>
+                </div>
+              </div>
+            </div>
+
             {courses.map((course) => (
               <div key={course._id} className="card p-4">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900">{course.title}</h3>
+                    <div className="flex items-center space-x-3 mb-2">
+                      <h3 className="font-semibold text-gray-900">{course.title}</h3>
+                      <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                        {course.department}
+                      </span>
+                    </div>
                     <p className="text-sm text-gray-600">
-                      {course.code} - {course.department}
+                      {course.code} • Semester {course.semester} • {course.credits} Credits
                     </p>
                     <p className="text-sm text-gray-500 mt-1">Faculty: {course.faculty.name}</p>
                     <p className="text-sm text-gray-500">
-                      Students: {course.enrolledStudents.length} | Semester: {course.semester} | Credits:{" "}
-                      {course.credits}
+                      Students: {course.enrolledStudents.length} | 
+                      Assignments: {course.assignments?.length || 0} | 
+                      Materials: {course.materials?.length || 0}
                     </p>
                   </div>
                   <button
@@ -571,6 +629,18 @@ const CourseManagementModal = ({ onClose }) => {
                 )}
               </div>
             ))}
+
+            {courses.length === 0 && (
+              <div className="text-center py-8">
+                <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No courses found</h3>
+                <p className="text-gray-600">
+                  {departmentFilter === "all" 
+                    ? "No courses have been created yet." 
+                    : `No courses found for ${departmentFilter} department.`}
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>

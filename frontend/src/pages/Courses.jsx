@@ -26,15 +26,27 @@ const CoursesList = () => {
   const [courses, setCourses] = useState([])
   const [loading, setLoading] = useState(true)
   const [showCreateForm, setShowCreateForm] = useState(false)
+  const [departmentFilter, setDepartmentFilter] = useState("all")
 
   useEffect(() => {
     fetchCourses()
-  }, [])
+  }, [departmentFilter])
 
   const fetchCourses = async () => {
     try {
       setLoading(true)
-      const response = await axios.get("/courses")
+      let endpoint = "/courses"
+      const params = {}
+      
+      // Add department filter for admin
+      if (user?.role === "admin" && departmentFilter !== "all") {
+        endpoint = "/admin/courses"
+        params.department = departmentFilter
+      } else if (user?.role === "admin") {
+        endpoint = "/admin/courses"
+      }
+      
+      const response = await axios.get(endpoint, { params })
       setCourses(response.data)
     } catch (error) {
       console.error("Fetch courses error:", error)
@@ -53,15 +65,82 @@ const CoursesList = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Courses</h1>
-          <p className="text-gray-600">{user?.role === "faculty" ? "Manage your courses" : "Your enrolled courses"}</p>
+          <p className="text-gray-600">
+            {user?.role === "faculty" 
+              ? "Manage your courses" 
+              : user?.role === "admin"
+              ? "View and manage all courses"
+              : "Your enrolled courses"
+            }
+          </p>
         </div>
-        {user?.role === "faculty" && (
-          <button onClick={() => setShowCreateForm(true)} className="btn btn-primary flex items-center">
-            <Plus className="h-4 w-4 mr-2" />
-            Create Course
-          </button>
-        )}
+        <div className="flex items-center space-x-3">
+          {/* Department Filter for Admin */}
+          {user?.role === "admin" && (
+            <div className="flex items-center space-x-2">
+              <label className="text-sm font-medium text-gray-700">Department:</label>
+              <select
+                value={departmentFilter}
+                onChange={(e) => setDepartmentFilter(e.target.value)}
+                className="input min-w-[200px]"
+              >
+                <option value="all">All Departments</option>
+                <option value="Computer Science">Computer Science</option>
+                <option value="Information Technology">Information Technology</option>
+                <option value="Biomedical">Biomedical</option>
+                <option value="Electronics and Communication">Electronics and Communication</option>
+                <option value="Mechanical">Mechanical</option>
+                <option value="Civil">Civil</option>
+              </select>
+            </div>
+          )}
+          
+          {user?.role === "faculty" && (
+            <button onClick={() => setShowCreateForm(true)} className="btn btn-primary flex items-center">
+              <Plus className="h-4 w-4 mr-2" />
+              Create Course
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Course Statistics for Admin */}
+      {user?.role === "admin" && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="card p-6">
+            <div className="text-center">
+              <p className="text-2xl font-bold text-blue-600">{courses.length}</p>
+              <p className="text-sm text-gray-600">
+                {departmentFilter === "all" ? "Total Courses" : `${departmentFilter} Courses`}
+              </p>
+            </div>
+          </div>
+          <div className="card p-6">
+            <div className="text-center">
+              <p className="text-2xl font-bold text-green-600">
+                {courses.reduce((acc, course) => acc + (course.enrolledStudents?.length || 0), 0)}
+              </p>
+              <p className="text-sm text-gray-600">Total Enrollments</p>
+            </div>
+          </div>
+          <div className="card p-6">
+            <div className="text-center">
+              <p className="text-2xl font-bold text-purple-600">
+                {[...new Set(courses.map(course => course.faculty?._id).filter(Boolean))].length}
+              </p>
+              <p className="text-sm text-gray-600">Active Faculty</p>
+            </div>
+          </div>
+          <div className="card p-6">
+            <div className="text-center">
+              <p className="text-2xl font-bold text-orange-600">
+                {courses.reduce((acc, course) => acc + (course.assignments?.length || 0), 0)}
+              </p>
+              <p className="text-sm text-gray-600">Total Assignments</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showCreateForm && <CreateCourseForm onClose={() => setShowCreateForm(false)} onSuccess={fetchCourses} />}
 
@@ -76,7 +155,14 @@ const CoursesList = () => {
           <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No courses found</h3>
           <p className="text-gray-600">
-            {user?.role === "faculty" ? "Create your first course to get started" : "No courses available yet"}
+            {user?.role === "faculty" 
+              ? "Create your first course to get started" 
+              : user?.role === "admin"
+              ? departmentFilter === "all" 
+                ? "No courses have been created yet."
+                : `No courses found for ${departmentFilter} department.`
+              : "No courses available yet"
+            }
           </p>
         </div>
       )}
@@ -86,6 +172,7 @@ const CoursesList = () => {
 
 const CourseCard = ({ course }) => {
   const navigate = useNavigate()
+  const { user } = useAuth()
 
   return (
     <div
@@ -94,9 +181,21 @@ const CourseCard = ({ course }) => {
     >
       <div className="flex items-start justify-between mb-4">
         <div className="flex-1">
-          <h3 className="text-lg font-semibold text-gray-900 mb-1">{course.title}</h3>
+          <div className="flex items-center space-x-2 mb-1">
+            <h3 className="text-lg font-semibold text-gray-900">{course.title}</h3>
+            {user?.role === "admin" && (
+              <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                {course.department}
+              </span>
+            )}
+          </div>
           <p className="text-sm text-gray-600 mb-2">{course.code}</p>
           <p className="text-sm text-gray-700 line-clamp-2">{course.description}</p>
+          {user?.role === "admin" && (
+            <p className="text-sm text-gray-600 mt-2">
+              Faculty: {course.faculty?.name || "Not assigned"}
+            </p>
+          )}
         </div>
       </div>
 

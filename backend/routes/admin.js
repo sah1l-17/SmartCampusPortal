@@ -184,10 +184,17 @@ router.get("/users", authenticate, authorize("admin"), async (req, res) => {
   }
 })
 
-// Get all courses with enrolled students (for admin) - UPDATED TO INCLUDE STUDENTS LIST
+// Get all courses with enrolled students (for admin) - UPDATED TO INCLUDE DEPARTMENT FILTER
 router.get("/courses", authenticate, authorize("admin"), async (req, res) => {
   try {
-    const courses = await Course.find()
+    const { department } = req.query
+    const filter = {}
+
+    if (department && department !== "all") {
+      filter.department = department
+    }
+
+    const courses = await Course.find(filter)
       .populate("faculty", "name email userId")
       .populate("enrolledStudents", "name email userId department")
       .sort({ createdAt: -1 })
