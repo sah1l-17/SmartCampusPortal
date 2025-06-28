@@ -42,6 +42,43 @@ router.get("/", authenticate, async (req, res) => {
   }
 })
 
+// Get unread notifications count
+router.get("/unread-count", authenticate, async (req, res) => {
+  try {
+    let filter = {}
+
+    if (req.user.role === "student") {
+      filter = {
+        $or: [
+          { recipients: "students" },
+          { recipients: "all" },
+          { recipients: "department", department: req.user.department },
+        ],
+      }
+    } else if (req.user.role === "faculty") {
+      filter = {
+        $or: [
+          { recipients: "faculty" },
+          { recipients: "all" },
+          { recipients: "department", department: req.user.department },
+        ],
+      }
+    } else if (req.user.role === "admin") {
+      // Admin can see all notifications
+      filter = {}
+    }
+
+    // Add unread filter (assuming we have a readBy field or isRead field)
+    // For now, let's return a simple count since we don't have read tracking
+    const unreadCount = await Notification.countDocuments(filter)
+
+    res.json({ unreadCount })
+  } catch (error) {
+    console.error("Get unread count error:", error)
+    res.status(500).json({ message: "Server error" })
+  }
+})
+
 // Get single notification
 router.get("/:notificationId", authenticate, async (req, res) => {
   try {

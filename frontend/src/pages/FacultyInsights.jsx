@@ -242,6 +242,31 @@ const SubmissionCard = ({ submission, assignment, onGrade }) => {
   const [showGradeForm, setShowGradeForm] = useState(false)
   const [marks, setMarks] = useState(submission.marks || 0)
   const [feedback, setFeedback] = useState(submission.feedback || "")
+  const [submissionFiles, setSubmissionFiles] = useState([])
+  const [loadingFiles, setLoadingFiles] = useState(false)
+
+  // Load file information when component mounts
+  useEffect(() => {
+    if (submission.files && submission.files.length > 0) {
+      fetchFileInfo()
+    }
+  }, [submission._id])
+
+  const fetchFileInfo = async () => {
+    try {
+      setLoadingFiles(true)
+      const response = await axios.get(
+        `/faculty/courses/${assignment.courseId}/assignments/${assignment.assignmentId}/submissions/${submission._id}/download?info=true`
+      )
+
+      setSubmissionFiles(response.data.files || [])
+    } catch (error) {
+      console.error("Fetch file info error:", error)
+      setSubmissionFiles([])
+    } finally {
+      setLoadingFiles(false)
+    }
+  }
 
   const handleGrade = () => {
     if (marks < 0 || marks > assignment.maxMarks) {
@@ -253,26 +278,45 @@ const SubmissionCard = ({ submission, assignment, onGrade }) => {
     setShowGradeForm(false)
   }
 
-  const downloadSubmission = async () => {
+  const downloadFile = async (fileIndex, filename) => {
     try {
       const response = await axios.get(
-        `/faculty/courses/${assignment.courseId}/assignments/${assignment.assignmentId}/submissions/${submission._id}/download`,
-        { responseType: "blob" },
+        `/faculty/courses/${assignment.courseId}/assignments/${assignment.assignmentId}/submissions/${submission._id}/download?fileIndex=${fileIndex}`,
+        { responseType: "blob" }
       )
 
       const url = window.URL.createObjectURL(new Blob([response.data]))
       const link = document.createElement("a")
       link.href = url
-      link.setAttribute("download", `${submission.student.name}_${assignment.assignmentTitle}.zip`)
+      link.setAttribute("download", filename)
       document.body.appendChild(link)
       link.click()
       link.remove()
       window.URL.revokeObjectURL(url)
 
-      toast.success("Submission downloaded successfully")
+      toast.success(`Downloaded ${filename} successfully`)
     } catch (error) {
-      console.error("Download submission error:", error)
-      toast.error("Failed to download submission")
+      console.error("Download file error:", error)
+      toast.error("Failed to download file")
+    }
+  }
+
+  const downloadAllFiles = async () => {
+    try {
+      for (let i = 0; i < submissionFiles.length; i++) {
+        const file = submissionFiles[i]
+        await downloadFile(file.index, file.filename)
+        
+        // Add small delay between downloads to prevent overwhelming the browser
+        if (i < submissionFiles.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 500))
+        }
+      }
+      
+      toast.success(`Downloaded all ${submissionFiles.length} files successfully`)
+    } catch (error) {
+      console.error("Download all files error:", error)
+      toast.error("Failed to download all files")
     }
   }
 
@@ -307,12 +351,45 @@ const SubmissionCard = ({ submission, assignment, onGrade }) => {
               <p className="text-sm text-gray-600 mt-1">{submission.feedback}</p>
             </div>
           )}
+          
+          {/* File Information */}
+          {submission.files && submission.files.length > 0 && (
+            <div className="mt-3">
+              <p className="text-sm font-medium text-gray-700 mb-2">Submitted Files:</p>
+              {loadingFiles ? (
+                <div className="text-sm text-gray-500">Loading files...</div>
+              ) : (
+                <div className="space-y-1">
+                  {submissionFiles.map((file, index) => (
+                    <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm">
+                      <div className="flex-1">
+                        <span className="font-medium text-gray-700">{file.filename}</span>
+                        <span className="text-gray-500 ml-2">
+                          ({file.size ? (file.size / 1024 / 1024).toFixed(2) + ' MB' : 'Unknown size'})
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => downloadFile(file.index, file.filename)}
+                        className="text-blue-600 hover:text-blue-800 font-medium"
+                      >
+                        Download
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
         <div className="ml-4 space-y-2">
-          {submission.files && submission.files.length > 0 && (
-            <button onClick={downloadSubmission} className="btn btn-outline btn-sm w-full">
-              Download
-            </button>
+          {submission.files && submission.files.length > 0 && !loadingFiles && (
+            <>
+              {submissionFiles.length > 1 && (
+                <button onClick={downloadAllFiles} className="btn btn-outline btn-sm w-full">
+                  Download All ({submissionFiles.length})
+                </button>
+              )}
+            </>
           )}
           {submission.isGraded ? (
             <button onClick={() => setShowGradeForm(true)} className="btn btn-outline btn-sm w-full">

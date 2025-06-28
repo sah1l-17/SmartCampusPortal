@@ -6,14 +6,14 @@ import axios from "axios"
 import toast from "react-hot-toast"
 
 const SubmissionForm = ({ courseId, assignmentId, onClose, onSuccess }) => {
-  const [file, setFile] = useState(null)
+  const [files, setFiles] = useState([])
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
 
-    if (!file) {
-      toast.error("Please select a file to submit")
+    if (!files || files.length === 0) {
+      toast.error("Please select at least one file to submit")
       return
     }
 
@@ -21,7 +21,9 @@ const SubmissionForm = ({ courseId, assignmentId, onClose, onSuccess }) => {
 
     try {
       const submitData = new FormData()
-      submitData.append("file", file)
+      files.forEach((file) => {
+        submitData.append("files", file)
+      })
 
       await axios.post(`/student/courses/${courseId}/assignments/${assignmentId}/submit`, submitData, {
         headers: { "Content-Type": "multipart/form-data" },
@@ -45,18 +47,23 @@ const SubmissionForm = ({ courseId, assignmentId, onClose, onSuccess }) => {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="form-group">
-            <label className="form-label">File (Max 50MB)</label>
+            <label className="form-label">Files (Max 5 files, 50MB each)</label>
             <input
               type="file"
               className="input"
-              onChange={(e) => setFile(e.target.files[0])}
+              onChange={(e) => setFiles(Array.from(e.target.files))}
               required
               disabled={loading}
+              multiple
             />
-            {file && (
-              <p className="text-sm text-gray-600 mt-1">
-                Selected: {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
-              </p>
+            {files && files.length > 0 && (
+              <div className="mt-2 space-y-1">
+                {files.map((file, index) => (
+                  <p key={index} className="text-sm text-gray-600">
+                    {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                  </p>
+                ))}
+              </div>
             )}
           </div>
 
@@ -64,7 +71,7 @@ const SubmissionForm = ({ courseId, assignmentId, onClose, onSuccess }) => {
             <button type="button" onClick={onClose} className="btn btn-outline" disabled={loading}>
               Cancel
             </button>
-            <button type="submit" disabled={loading || !file} className="btn btn-primary flex items-center">
+            <button type="submit" disabled={loading || !files || files.length === 0} className="btn btn-primary flex items-center">
               {loading ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />

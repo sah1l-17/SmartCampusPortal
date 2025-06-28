@@ -455,6 +455,9 @@ router.get("/attendance", authenticate, authorize("student"), async (req, res) =
         faculty: course.faculty.name,
         totalClasses: 0,
         attendedClasses: 0,
+        presentCount: 0,
+        lateCount: 0,
+        absentCount: 0,
         attendancePercentage: 0,
         records: [],
       }
@@ -464,9 +467,16 @@ router.get("/attendance", authenticate, authorize("student"), async (req, res) =
 
         if (studentRecord) {
           courseAttendance.totalClasses++
-          const attended = studentRecord.status === "present"
-          if (attended) {
+          
+          // Count different status types
+          if (studentRecord.status === "present") {
             courseAttendance.attendedClasses++
+            courseAttendance.presentCount++
+          } else if (studentRecord.status === "late") {
+            courseAttendance.attendedClasses++
+            courseAttendance.lateCount++
+          } else {
+            courseAttendance.absentCount++
           }
 
           courseAttendance.records.push({

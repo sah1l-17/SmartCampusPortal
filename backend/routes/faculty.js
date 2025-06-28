@@ -648,6 +648,7 @@ router.get(
   async (req, res) => {
     try {
       const { courseId, assignmentId, submissionId } = req.params
+      const { fileIndex, info } = req.query // Optional file index for downloading specific file, info for getting file details
 
       const course = await Course.findOne({
         _id: courseId,
@@ -668,15 +669,37 @@ router.get(
         return res.status(404).json({ message: "Submission file not found" })
       }
 
-      // Get the first file from submission
-      const file = submission.files[0]
+      // If info is requested, return file information
+      if (info === 'true') {
+        return res.json({
+          files: submission.files.map((file, index) => ({
+            index,
+            filename: file.filename,
+            size: file.size,
+            contentType: file.contentType
+          }))
+        })
+      }
 
-      // Set proper headers to preserve original file extension and type
+      // If fileIndex is specified, download that specific file
+      if (fileIndex !== undefined) {
+        const index = parseInt(fileIndex)
+        if (index < 0 || index >= submission.files.length) {
+          return res.status(404).json({ message: "File not found" })
+        }
+
+        const file = submission.files[index]
+        res.setHeader("Content-Disposition", `attachment; filename="${file.filename}"`)
+        res.setHeader("Content-Type", file.contentType || "application/octet-stream")
+        res.setHeader("Content-Length", file.size || file.data.length)
+        return res.send(file.data)
+      }
+
+      // Default: download first file (for backward compatibility)
+      const file = submission.files[0]
       res.setHeader("Content-Disposition", `attachment; filename="${file.filename}"`)
       res.setHeader("Content-Type", file.contentType || "application/octet-stream")
       res.setHeader("Content-Length", file.size || file.data.length)
-
-      // Send the file data directly
       res.send(file.data)
     } catch (error) {
       console.error("Download submission error:", error)
