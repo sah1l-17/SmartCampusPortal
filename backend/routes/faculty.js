@@ -269,7 +269,7 @@ router.patch(
   },
 )
 
-// Get assignments for grading (for insights) - FIXED TO SHOW UNIQUE COURSES
+// Get assignments for grading (for insights)
 router.get("/assignments", authenticate, authorize("faculty"), async (req, res) => {
   try {
     const courses = await Course.find({ faculty: req.user._id })
@@ -322,13 +322,9 @@ router.post("/courses/:courseId/attendance", authenticate, authorize("faculty"),
     }
 
     // Check if attendance for this date already exists
-    const existingAttendance = course.attendance.find(
+    const existingAttendanceIndex = course.attendance.findIndex(
       (att) => att.date.toDateString() === new Date(date).toDateString(),
     )
-
-    if (existingAttendance) {
-      return res.status(400).json({ message: "Attendance for this date already exists" })
-    }
 
     const attendanceRecord = {
       date: new Date(date),
@@ -340,7 +336,14 @@ router.post("/courses/:courseId/attendance", authenticate, authorize("faculty"),
       markedBy: req.user._id,
     }
 
-    course.attendance.push(attendanceRecord)
+    if (existingAttendanceIndex !== -1) {
+      // Update existing attendance record
+      course.attendance[existingAttendanceIndex] = attendanceRecord
+    } else {
+      // Add new attendance record
+      course.attendance.push(attendanceRecord)
+    }
+
     await course.save()
 
     res.json({ message: "Attendance marked successfully" })
@@ -493,7 +496,7 @@ router.get("/events", authenticate, authorize("faculty"), async (req, res) => {
   }
 })
 
-// Delete event - NEW ROUTE
+// Delete event
 router.delete("/events/:eventId", authenticate, authorize("faculty"), async (req, res) => {
   try {
     const { eventId } = req.params
@@ -566,7 +569,7 @@ router.get("/events/:eventId/registrations/download", authenticate, authorize("f
   }
 })
 
-// Download course material - Faculty only
+// Download course material
 router.get(
   "/courses/:courseId/materials/:materialId/download",
   authenticate,
@@ -599,7 +602,7 @@ router.get(
   },
 )
 
-// Download assignment attachment - Faculty only
+// Download assignment attachment
 router.get(
   "/courses/:courseId/assignments/:assignmentId/attachments/:attachmentId/download",
   authenticate,
@@ -637,7 +640,7 @@ router.get(
   },
 )
 
-// Download assignment submission
+// Download assignment submission - FIXED TO PRESERVE ORIGINAL FILE EXTENSION
 router.get(
   "/courses/:courseId/assignments/:assignmentId/submissions/:submissionId/download",
   authenticate,
@@ -665,9 +668,15 @@ router.get(
         return res.status(404).json({ message: "Submission file not found" })
       }
 
-      const file = submission.files[0] // Get first file
+      // Get the first file from submission
+      const file = submission.files[0]
+
+      // Set proper headers to preserve original file extension and type
       res.setHeader("Content-Disposition", `attachment; filename="${file.filename}"`)
-      res.setHeader("Content-Type", file.contentType)
+      res.setHeader("Content-Type", file.contentType || "application/octet-stream")
+      res.setHeader("Content-Length", file.size || file.data.length)
+
+      // Send the file data directly
       res.send(file.data)
     } catch (error) {
       console.error("Download submission error:", error)
