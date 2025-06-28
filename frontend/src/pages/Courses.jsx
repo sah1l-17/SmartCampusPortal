@@ -19,6 +19,7 @@ import {
 import axios from "axios"
 import toast from "react-hot-toast"
 import LoadingSpinner from "../components/LoadingSpinner"
+import SubmissionForm from "./SubmissionForm"
 
 const CoursesList = () => {
   const { user } = useAuth()
@@ -1020,59 +1021,6 @@ const AddAssignmentForm = ({ courseId, onClose, onSuccess }) => {
             </button>
             <button type="submit" disabled={loading} className="btn btn-primary">
               {loading ? "Adding..." : "Add Assignment"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  )
-}
-
-// Submission Form Component
-const SubmissionForm = ({ courseId, assignmentId, onClose, onSuccess }) => {
-  const [file, setFile] = useState(null)
-  const [loading, setLoading] = useState(false)
-
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    setLoading(true)
-
-    try {
-      const submitData = new FormData()
-      if (file) {
-        submitData.append("file", file)
-      }
-
-      await axios.post(`/student/courses/${courseId}/assignments/${assignmentId}/submit`, submitData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      })
-
-      toast.success("Assignment submitted successfully")
-      onSuccess()
-    } catch (error) {
-      toast.error("Failed to submit assignment")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md">
-        <h3 className="text-lg font-bold mb-4">Submit Assignment</h3>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="form-group">
-            <label className="form-label">File (Max 50MB)</label>
-            <input type="file" className="input" onChange={(e) => setFile(e.target.files[0])} required />
-          </div>
-
-          <div className="flex justify-end space-x-3">
-            <button type="button" onClick={onClose} className="btn btn-outline">
-              Cancel
-            </button>
-            <button type="submit" disabled={loading} className="btn btn-primary">
-              {loading ? "Submitting..." : "Submit"}
             </button>
           </div>
         </form>

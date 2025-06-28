@@ -2,7 +2,19 @@
 
 import { useState, useEffect } from "react"
 import { useAuth } from "../contexts/AuthContext"
-import { Calendar, MapPin, Users, Clock, Plus, CheckCircle, XCircle, AlertCircle, Download, Trash2 } from "lucide-react"
+import {
+  Calendar,
+  MapPin,
+  Users,
+  Clock,
+  Plus,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  Download,
+  Trash2,
+  Eye,
+} from "lucide-react"
 import axios from "axios"
 import toast from "react-hot-toast"
 import LoadingSpinner from "../components/LoadingSpinner"
@@ -12,6 +24,8 @@ const Events = () => {
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
   const [showCreateForm, setShowCreateForm] = useState(false)
+  const [selectedEvent, setSelectedEvent] = useState(null)
+  const [showEventModal, setShowEventModal] = useState(false)
 
   useEffect(() => {
     fetchEvents()
@@ -83,6 +97,17 @@ const Events = () => {
     }
   }
 
+  const handleViewEvent = async (eventId) => {
+    try {
+      const response = await axios.get(`/events/${eventId}`)
+      setSelectedEvent(response.data)
+      setShowEventModal(true)
+    } catch (error) {
+      console.error("Fetch event details error:", error)
+      toast.error("Failed to fetch event details")
+    }
+  }
+
   if (loading) {
     return <LoadingSpinner text="Loading events..." />
   }
@@ -118,6 +143,7 @@ const Events = () => {
             onRegister={handleRegister}
             onDownloadRegistrations={handleDownloadRegistrations}
             onDeleteEvent={handleDeleteEvent}
+            onViewEvent={handleViewEvent}
           />
         ))}
       </div>
@@ -131,11 +157,23 @@ const Events = () => {
           </p>
         </div>
       )}
+
+      {/* Event Detail Modal */}
+      {showEventModal && selectedEvent && (
+        <EventDetailModal
+          event={selectedEvent}
+          onClose={() => {
+            setShowEventModal(false)
+            setSelectedEvent(null)
+          }}
+          onRegister={handleRegister}
+        />
+      )}
     </div>
   )
 }
 
-const EventCard = ({ event, onRegister, onDownloadRegistrations, onDeleteEvent }) => {
+const EventCard = ({ event, onRegister, onDownloadRegistrations, onDeleteEvent, onViewEvent }) => {
   const { user } = useAuth()
 
   const getStatusBadge = (status) => {
@@ -172,14 +210,23 @@ const EventCard = ({ event, onRegister, onDownloadRegistrations, onDeleteEvent }
   const isOwnEvent = user?.role === "faculty" && event.organizer?._id === user?.id
 
   return (
-    <div className="card p-6">
+    <div className="card p-6 hover:shadow-lg transition-shadow">
       <div className="flex items-start justify-between mb-4">
         <div className="flex-1">
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">{event.title}</h3>
+          <h3
+            className="text-lg font-semibold text-gray-900 mb-2 cursor-pointer hover:text-blue-600"
+            onClick={() => onViewEvent(event._id)}
+          >
+            {event.title}
+          </h3>
           <p className="text-sm text-gray-600 mb-3 line-clamp-2">{event.description}</p>
         </div>
         <div className="flex flex-col items-end space-y-2">
           {(user?.role === "faculty" || user?.role === "admin") && getStatusBadge(event.status)}
+          <button onClick={() => onViewEvent(event._id)} className="btn btn-outline btn-sm flex items-center">
+            <Eye className="h-3 w-3 mr-1" />
+            View
+          </button>
           {isOwnEvent && (
             <button
               onClick={() => onDeleteEvent(event._id)}
@@ -270,6 +317,152 @@ const EventCard = ({ event, onRegister, onDownloadRegistrations, onDeleteEvent }
             Download List
           </button>
         )}
+      </div>
+    </div>
+  )
+}
+
+const EventDetailModal = ({ event, onClose, onRegister }) => {
+  const { user } = useAuth()
+  const [imageError, setImageError] = useState(false)
+
+  const isRegistered = event.registeredStudents?.some(
+    (reg) => reg.student === user?.id || reg.student?._id === user?.id,
+  )
+
+  const isPastEvent = new Date(event.date) < new Date()
+  const isFull = event.maxParticipants > 0 && event.registeredStudents?.length >= event.maxParticipants
+
+  const getImageUrl = () => {
+    if (event.image && !imageError) {
+      return `${axios.defaults.baseURL}/events/${event._id}/image`
+    }
+    return null
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
+          <h2 className="text-xl font-bold text-gray-900">{event.title}</h2>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded">
+            <XCircle className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="p-6">
+          {/* Event Image */}
+          {getImageUrl() && (
+            <div className="mb-6">
+              <img
+                src={getImageUrl() || "/placeholder.svg"}
+                alt={event.title}
+                className="w-full h-64 object-cover rounded-lg"
+                onError={() => setImageError(true)}
+              />
+            </div>
+          )}
+
+          {/* Event Details */}
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Description</h3>
+              <p className="text-gray-700 whitespace-pre-wrap">{event.description}</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <h4 className="font-medium text-gray-900 mb-2">Event Details</h4>
+                <div className="space-y-2 text-sm text-gray-600">
+                  <div className="flex items-center">
+                    <Calendar className="h-4 w-4 mr-2" />
+                    <span>
+                      {new Date(event.date).toLocaleDateString()} at {event.time}
+                    </span>
+                  </div>
+                  <div className="flex items-center">
+                    <MapPin className="h-4 w-4 mr-2" />
+                    <span>{event.venue}</span>
+                  </div>
+                  <div className="flex items-center">
+                    <Users className="h-4 w-4 mr-2" />
+                    <span>
+                      {event.registeredStudents?.length || 0}
+                      {event.maxParticipants > 0 && ` / ${event.maxParticipants}`} registered
+                    </span>
+                  </div>
+                  {event.organizer && (
+                    <div className="flex items-center">
+                      <Clock className="h-4 w-4 mr-2" />
+                      <span>Organized by {event.organizer.name}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <h4 className="font-medium text-gray-900 mb-2">Registration Status</h4>
+                <div className="space-y-2">
+                  {user?.role === "student" && event.status === "approved" && (
+                    <div>
+                      {isRegistered ? (
+                        <div className="flex items-center text-green-600">
+                          <CheckCircle className="h-4 w-4 mr-2" />
+                          <span className="text-sm font-medium">You are registered</span>
+                        </div>
+                      ) : isPastEvent ? (
+                        <div className="flex items-center text-gray-500">
+                          <XCircle className="h-4 w-4 mr-2" />
+                          <span className="text-sm">Event has ended</span>
+                        </div>
+                      ) : isFull ? (
+                        <div className="flex items-center text-red-600">
+                          <AlertCircle className="h-4 w-4 mr-2" />
+                          <span className="text-sm">Event is full</span>
+                        </div>
+                      ) : (
+                        <button onClick={() => onRegister(event._id)} className="btn btn-primary">
+                          Register for Event
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Registered Students (for organizers) */}
+            {user?.role === "faculty" &&
+              event.organizer?._id === user?.id &&
+              event.registeredStudents &&
+              event.registeredStudents.length > 0 && (
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-2">Registered Students</h4>
+                  <div className="max-h-40 overflow-y-auto">
+                    <div className="space-y-2">
+                      {event.registeredStudents.map((reg) => (
+                        <div key={reg._id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                          <div>
+                            <span className="font-medium">{reg.student.name}</span>
+                            <span className="text-sm text-gray-500 ml-2">({reg.student.userId})</span>
+                          </div>
+                          <span className="text-xs text-gray-500">
+                            {new Date(reg.registeredAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+          </div>
+        </div>
+
+        <div className="sticky bottom-0 bg-gray-50 px-6 py-4 flex justify-end">
+          <button onClick={onClose} className="btn btn-primary">
+            Close
+          </button>
+        </div>
       </div>
     </div>
   )

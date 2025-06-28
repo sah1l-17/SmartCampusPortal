@@ -43,6 +43,25 @@ router.get("/:eventId", async (req, res) => {
   }
 })
 
+// Get event image - NEW ROUTE
+router.get("/:eventId/image", async (req, res) => {
+  try {
+    const { eventId } = req.params
+
+    const event = await Event.findById(eventId)
+    if (!event || !event.image || !event.image.data) {
+      return res.status(404).json({ message: "Event image not found" })
+    }
+
+    res.setHeader("Content-Type", event.image.contentType)
+    res.setHeader("Cache-Control", "public, max-age=86400") // Cache for 1 day
+    res.send(event.image.data)
+  } catch (error) {
+    console.error("Get event image error:", error)
+    res.status(500).json({ message: "Server error" })
+  }
+})
+
 // Download event registrations (for faculty who organized the event)
 router.get("/:eventId/registrations/download", authenticate, async (req, res) => {
   try {

@@ -4,124 +4,79 @@ import { authenticate } from "../middleware/auth.js"
 
 const router = express.Router()
 
-// Get notifications for user
+// Get notifications for the authenticated user
 router.get("/", authenticate, async (req, res) => {
   try {
-    console.log("Fetching notifications for user:", req.user.role, req.user.department)
+    let filter = {}
 
-    // Build filter based on user role and recipients
-    const filter = {
-      isActive: true,
-      $or: [
-        { recipients: "all" },
-        // Handle both singular and plural forms
-        { recipients: req.user.role }, // "student", "faculty", "admin"
-        { recipients: req.user.role + "s" }, // "students", "facultys" (though facultys isn't used)
-      ],
-    }
-
-    // Add specific mappings for common cases
     if (req.user.role === "student") {
-      filter.$or.push({ recipients: "students" })
+      filter = {
+        $or: [
+          { recipients: "students" },
+          { recipients: "all" },
+          { recipients: "department", department: req.user.department },
+        ],
+      }
+    } else if (req.user.role === "faculty") {
+      filter = {
+        $or: [
+          { recipients: "faculty" },
+          { recipients: "all" },
+          { recipients: "department", department: req.user.department },
+        ],
+      }
+    } else if (req.user.role === "admin") {
+      // Admin can see all notifications
+      filter = {}
     }
-    if (req.user.role === "faculty") {
-      filter.$or.push({ recipients: "faculty" }) // faculty is both singular and plural
-    }
-
-    // Add department filter if notification is for specific department
-    if (req.user.department) {
-      filter.$or.push({
-        recipients: "department",
-        department: req.user.department,
-      })
-    }
-
-    console.log("Notification filter:", JSON.stringify(filter, null, 2))
 
     const notifications = await Notification.find(filter)
-      .populate("sender", "name role")
+      .populate("sender", "name email")
       .sort({ createdAt: -1 })
       .limit(50)
 
-    console.log(`Found ${notifications.length} notifications`)
-
-    // Mark which notifications are read by this user
-    const notificationsWithReadStatus = notifications.map((notification) => {
-      const isRead = notification.readBy.some((read) => read.user.toString() === req.user._id.toString())
-      return {
-        ...notification.toObject(),
-        isRead,
-      }
-    })
-
-    res.json(notificationsWithReadStatus)
+    res.json(notifications)
   } catch (error) {
     console.error("Get notifications error:", error)
     res.status(500).json({ message: "Server error" })
   }
 })
 
-// Mark notification as read
-router.patch("/:notificationId/read", authenticate, async (req, res) => {
+// Get single notification
+router.get("/:notificationId", authenticate, async (req, res) => {
   try {
     const { notificationId } = req.params
 
-    const notification = await Notification.findById(notificationId)
+    const notification = await Notification.findById(notificationId).populate("sender", "name email")
+
     if (!notification) {
       return res.status(404).json({ message: "Notification not found" })
     }
 
-    // Check if already read
-    const alreadyRead = notification.readBy.some((read) => read.user.toString() === req.user._id.toString())
+    // Check if user has access to this notification
+    let hasAccess = false
 
-    if (!alreadyRead) {
-      notification.readBy.push({
-        user: req.user._id,
-        readAt: new Date(),
-      })
-      await notification.save()
+    if (req.user.role === "admin") {
+      hasAccess = true
+    } else if (req.user.role === "student") {
+      hasAccess =
+        notification.recipients === "students" ||
+        notification.recipients === "all" ||
+        (notification.recipients === "department" && notification.department === req.user.department)
+    } else if (req.user.role === "faculty") {
+      hasAccess =
+        notification.recipients === "faculty" ||
+        notification.recipients === "all" ||
+        (notification.recipients === "department" && notification.department === req.user.department)
     }
 
-    res.json({ message: "Notification marked as read" })
+    if (!hasAccess) {
+      return res.status(403).json({ message: "Access denied" })
+    }
+
+    res.json(notification)
   } catch (error) {
-    console.error("Mark notification as read error:", error)
-    res.status(500).json({ message: "Server error" })
-  }
-})
-
-// Get unread count
-router.get("/unread-count", authenticate, async (req, res) => {
-  try {
-    const filter = {
-      isActive: true,
-      $or: [{ recipients: "all" }, { recipients: req.user.role }, { recipients: req.user.role + "s" }],
-    }
-
-    // Add specific mappings for common cases
-    if (req.user.role === "student") {
-      filter.$or.push({ recipients: "students" })
-    }
-    if (req.user.role === "faculty") {
-      filter.$or.push({ recipients: "faculty" })
-    }
-
-    // Add department filter
-    if (req.user.department) {
-      filter.$or.push({
-        recipients: "department",
-        department: req.user.department,
-      })
-    }
-
-    const notifications = await Notification.find(filter)
-
-    const unreadCount = notifications.filter((notification) => {
-      return !notification.readBy.some((read) => read.user.toString() === req.user._id.toString())
-    }).length
-
-    res.json({ unreadCount })
-  } catch (error) {
-    console.error("Get unread count error:", error)
+    console.error("Get notification error:", error)
     res.status(500).json({ message: "Server error" })
   }
 })
@@ -132,8 +87,30 @@ router.get("/:notificationId/attachments/:attachmentId/download", authenticate, 
     const { notificationId, attachmentId } = req.params
 
     const notification = await Notification.findById(notificationId)
+
     if (!notification) {
       return res.status(404).json({ message: "Notification not found" })
+    }
+
+    // Check if user has access to this notification
+    let hasAccess = false
+
+    if (req.user.role === "admin") {
+      hasAccess = true
+    } else if (req.user.role === "student") {
+      hasAccess =
+        notification.recipients === "students" ||
+        notification.recipients === "all" ||
+        (notification.recipients === "department" && notification.department === req.user.department)
+    } else if (req.user.role === "faculty") {
+      hasAccess =
+        notification.recipients === "faculty" ||
+        notification.recipients === "all" ||
+        (notification.recipients === "department" && notification.department === req.user.department)
+    }
+
+    if (!hasAccess) {
+      return res.status(403).json({ message: "Access denied" })
     }
 
     const attachment = notification.attachments.id(attachmentId)
@@ -141,12 +118,8 @@ router.get("/:notificationId/attachments/:attachmentId/download", authenticate, 
       return res.status(404).json({ message: "Attachment not found" })
     }
 
-    res.set({
-      "Content-Type": attachment.contentType,
-      "Content-Disposition": `attachment; filename="${attachment.filename}"`,
-      "Content-Length": attachment.size,
-    })
-
+    res.setHeader("Content-Disposition", `attachment; filename="${attachment.filename}"`)
+    res.setHeader("Content-Type", attachment.contentType)
     res.send(attachment.data)
   } catch (error) {
     console.error("Download attachment error:", error)

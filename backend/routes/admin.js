@@ -199,6 +199,27 @@ router.get("/courses", authenticate, authorize("admin"), async (req, res) => {
   }
 })
 
+// Get single course by ID (for admin) - NEW ROUTE
+router.get("/courses/:courseId", authenticate, authorize("admin"), async (req, res) => {
+  try {
+    const { courseId } = req.params
+
+    const course = await Course.findById(courseId)
+      .populate("faculty", "name email userId")
+      .populate("enrolledStudents", "name email userId department")
+      .populate("assignments.submissions.student", "name email userId")
+
+    if (!course) {
+      return res.status(404).json({ message: "Course not found" })
+    }
+
+    res.json(course)
+  } catch (error) {
+    console.error("Get course detail error:", error)
+    res.status(500).json({ message: "Server error" })
+  }
+})
+
 // Toggle user status
 router.patch("/users/:userId/toggle-status", authenticate, authorize("admin"), async (req, res) => {
   try {

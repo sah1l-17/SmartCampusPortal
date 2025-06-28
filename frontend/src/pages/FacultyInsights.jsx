@@ -59,6 +59,19 @@ const FacultyInsights = () => {
     )
   }
 
+  // Get unique courses from assignments - FIXED
+  const uniqueCourses = assignments.reduce((acc, assignment) => {
+    const existingCourse = acc.find((course) => course.id === assignment.courseId)
+    if (!existingCourse) {
+      acc.push({
+        id: assignment.courseId,
+        title: assignment.courseTitle,
+        code: assignment.courseCode,
+      })
+    }
+    return acc
+  }, [])
+
   const filteredAssignments =
     selectedCourse === "all" ? assignments : assignments.filter((assignment) => assignment.courseId === selectedCourse)
 
@@ -68,10 +81,6 @@ const FacultyInsights = () => {
     ungradedSubmissions: assignments.reduce((acc, assignment) => acc + assignment.ungradedCount, 0),
     gradedSubmissions: assignments.reduce((acc, assignment) => acc + assignment.gradedCount, 0),
   }
-
-  const uniqueCourses = [
-    ...new Set(assignments.map((a) => ({ id: a.courseId, title: a.courseTitle, code: a.courseCode }))),
-  ]
 
   return (
     <div className="space-y-6">
@@ -244,6 +253,29 @@ const SubmissionCard = ({ submission, assignment, onGrade }) => {
     setShowGradeForm(false)
   }
 
+  const downloadSubmission = async () => {
+    try {
+      const response = await axios.get(
+        `/faculty/courses/${assignment.courseId}/assignments/${assignment.assignmentId}/submissions/${submission._id}/download`,
+        { responseType: "blob" },
+      )
+
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement("a")
+      link.href = url
+      link.setAttribute("download", `${submission.student.name}_${assignment.assignmentTitle}.zip`)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+
+      toast.success("Submission downloaded successfully")
+    } catch (error) {
+      console.error("Download submission error:", error)
+      toast.error("Failed to download submission")
+    }
+  }
+
   return (
     <div className="border rounded-lg p-4">
       <div className="flex items-start justify-between">
@@ -276,13 +308,18 @@ const SubmissionCard = ({ submission, assignment, onGrade }) => {
             </div>
           )}
         </div>
-        <div className="ml-4">
+        <div className="ml-4 space-y-2">
+          {submission.files && submission.files.length > 0 && (
+            <button onClick={downloadSubmission} className="btn btn-outline btn-sm w-full">
+              Download
+            </button>
+          )}
           {submission.isGraded ? (
-            <button onClick={() => setShowGradeForm(true)} className="btn btn-outline btn-sm">
+            <button onClick={() => setShowGradeForm(true)} className="btn btn-outline btn-sm w-full">
               Update Grade
             </button>
           ) : (
-            <button onClick={() => setShowGradeForm(true)} className="btn btn-primary btn-sm">
+            <button onClick={() => setShowGradeForm(true)} className="btn btn-primary btn-sm w-full">
               Grade
             </button>
           )}

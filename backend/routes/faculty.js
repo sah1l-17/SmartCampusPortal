@@ -269,7 +269,7 @@ router.patch(
   },
 )
 
-// Get assignments for grading (for insights)
+// Get assignments for grading (for insights) - FIXED TO SHOW UNIQUE COURSES
 router.get("/assignments", authenticate, authorize("faculty"), async (req, res) => {
   try {
     const courses = await Course.find({ faculty: req.user._id })
