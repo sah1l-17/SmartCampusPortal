@@ -299,7 +299,7 @@ const CourseDetail = () => {
 
   useEffect(() => {
     fetchCourseDetail()
-    if (user?.role === "faculty") {
+    if (user?.role === "faculty" || user?.role === "admin") {
       fetchStudents()
     }
   }, [courseId])
@@ -323,7 +323,12 @@ const CourseDetail = () => {
 
   const fetchStudents = async () => {
     try {
-      const response = await axios.get(`/faculty/courses/${courseId}/students`)
+      let endpoint = `/faculty/courses/${courseId}/students`
+      if (user?.role === "admin") {
+        endpoint = `/admin/courses/${courseId}/students`
+      }
+
+      const response = await axios.get(endpoint)
       setStudents(response.data.students)
     } catch (error) {
       console.error("Fetch students error:", error)
@@ -462,7 +467,7 @@ const CourseDetail = () => {
             >
               Assignments
             </button>
-            {user?.role === "faculty" && (
+            {(user?.role === "faculty" || user?.role === "admin") && (
               <button
                 onClick={() => setActiveTab("students")}
                 className={`py-4 px-1 border-b-2 font-medium text-sm ${
@@ -545,7 +550,7 @@ const CourseDetail = () => {
             />
           )}
 
-          {activeTab === "students" && user?.role === "faculty" && (
+          {activeTab === "students" && (user?.role === "faculty" || user?.role === "admin") && (
             <div>
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-medium text-gray-900">Enrolled Students</h3>

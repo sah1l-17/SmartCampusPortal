@@ -184,7 +184,7 @@ router.get("/users", authenticate, authorize("admin"), async (req, res) => {
   }
 })
 
-// Get all courses with enrolled students (for admin)
+// Get all courses with enrolled students (for admin) - UPDATED TO INCLUDE STUDENTS LIST
 router.get("/courses", authenticate, authorize("admin"), async (req, res) => {
   try {
     const courses = await Course.find()
@@ -219,6 +219,91 @@ router.get("/courses/:courseId", authenticate, authorize("admin"), async (req, r
     res.status(500).json({ message: "Server error" })
   }
 })
+
+// Get course students (for admin) - NEW ROUTE
+router.get("/courses/:courseId/students", authenticate, authorize("admin"), async (req, res) => {
+  try {
+    const { courseId } = req.params
+
+    const course = await Course.findById(courseId).populate("enrolledStudents", "name email userId department")
+
+    if (!course) {
+      return res.status(404).json({ message: "Course not found" })
+    }
+
+    res.json({
+      course: {
+        title: course.title,
+        code: course.code,
+        department: course.department,
+      },
+      students: course.enrolledStudents,
+    })
+  } catch (error) {
+    console.error("Get course students error:", error)
+    res.status(500).json({ message: "Server error" })
+  }
+})
+
+// Download course material - Admin access
+router.get("/courses/:courseId/materials/:materialId/download", authenticate, authorize("admin"), async (req, res) => {
+  try {
+    const { courseId, materialId } = req.params
+
+    const course = await Course.findById(courseId)
+
+    if (!course) {
+      return res.status(404).json({ message: "Course not found" })
+    }
+
+    const material = course.materials.id(materialId)
+    if (!material || !material.file) {
+      return res.status(404).json({ message: "Material not found" })
+    }
+
+    res.setHeader("Content-Disposition", `attachment; filename="${material.file.filename}"`)
+    res.setHeader("Content-Type", material.file.contentType)
+    res.send(material.file.data)
+  } catch (error) {
+    console.error("Download material error:", error)
+    res.status(500).json({ message: "Server error" })
+  }
+})
+
+// Download assignment attachment - Admin access
+router.get(
+  "/courses/:courseId/assignments/:assignmentId/attachments/:attachmentId/download",
+  authenticate,
+  authorize("admin"),
+  async (req, res) => {
+    try {
+      const { courseId, assignmentId, attachmentId } = req.params
+
+      const course = await Course.findById(courseId)
+
+      if (!course) {
+        return res.status(404).json({ message: "Course not found" })
+      }
+
+      const assignment = course.assignments.id(assignmentId)
+      if (!assignment) {
+        return res.status(404).json({ message: "Assignment not found" })
+      }
+
+      const attachment = assignment.attachments.id(attachmentId)
+      if (!attachment) {
+        return res.status(404).json({ message: "Attachment not found" })
+      }
+
+      res.setHeader("Content-Disposition", `attachment; filename="${attachment.filename}"`)
+      res.setHeader("Content-Type", attachment.contentType)
+      res.send(attachment.data)
+    } catch (error) {
+      console.error("Download attachment error:", error)
+      res.status(500).json({ message: "Server error" })
+    }
+  },
+)
 
 // Toggle user status
 router.patch("/users/:userId/toggle-status", authenticate, authorize("admin"), async (req, res) => {

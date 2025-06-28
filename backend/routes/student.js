@@ -1,11 +1,11 @@
 import express from "express"
+import multer from "multer"
 import Course from "../models/Course.js"
 import Event from "../models/Event.js"
 import Notification from "../models/Notification.js"
 import Placement from "../models/Placement.js"
 import { authenticate, authorize } from "../middleware/auth.js"
 import { logActivity } from "../utils/activity.js"
-import multer from "multer"
 
 const router = express.Router()
 
@@ -15,9 +15,11 @@ const upload = multer({
   storage,
   limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
   fileFilter: (req, file, cb) => {
-    const allowedTypes = /pdf|doc|docx|txt|jpg|jpeg|png|zip|rar/
+    const allowedTypes = /jpeg|jpg|png|gif|pdf|doc|docx|ppt|pptx|mp4|avi|mov|xlsx|xls|txt|zip|rar/
     const extname = allowedTypes.test(file.originalname.toLowerCase())
-    if (extname) {
+    const mimetype = allowedTypes.test(file.mimetype)
+
+    if (mimetype && extname) {
       return cb(null, true)
     } else {
       cb(new Error("Invalid file type"))
@@ -25,11 +27,231 @@ const upload = multer({
   },
 })
 
+// Get student dashboard data
+router.get("/dashboard", authenticate, authorize("student"), async (req, res) => {
+  try {
+    const studentId = req.user._id
+
+    // Get enrolled courses
+    const courses = await Course.find({
+      enrolledStudents: studentId,
+      isActive: true,
+    })
+      .populate("faculty", "name email")
+      .select("title code faculty assignments materials")
+
+    // Get upcoming events
+    const upcomingEvents = await Event.find({
+      status: "approved",
+      date: { $gte: new Date() },
+      $or: [{ department: req.user.department }, { department: { $exists: false } }],
+    })
+      .populate("organizer", "name")
+      .sort({ date: 1 })
+      .limit(5)
+
+    // Get recent notifications
+    const notifications = await Notification.find({
+      $or: [
+        { targetRole: "student" },
+        { targetRole: { $exists: false } },
+        { department: req.user.department },
+        { department: { $exists: false } },
+      ],
+    })
+      .sort({ createdAt: -1 })
+      .limit(5)
+
+    // Get placement opportunities
+    const placements = await Placement.find({
+      status: "active",
+      applicationDeadline: { $gte: new Date() },
+      $or: [{ department: req.user.department }, { department: { $exists: false } }],
+    })
+      .sort({ applicationDeadline: 1 })
+      .limit(5)
+
+    // Calculate assignment statistics
+    let totalAssignments = 0
+    let submittedAssignments = 0
+    let pendingAssignments = 0
+
+    courses.forEach((course) => {
+      course.assignments.forEach((assignment) => {
+        totalAssignments++
+        const submission = assignment.submissions.find((sub) => sub.student.toString() === studentId.toString())
+        if (submission) {
+          submittedAssignments++
+        } else {
+          pendingAssignments++
+        }
+      })
+    })
+
+    const stats = {
+      enrolledCourses: courses.length,
+      totalAssignments,
+      submittedAssignments,
+      pendingAssignments,
+      upcomingEvents: upcomingEvents.length,
+      availablePlacements: placements.length,
+    }
+
+    res.json({
+      stats,
+      courses,
+      upcomingEvents,
+      notifications,
+      placements,
+    })
+  } catch (error) {
+    console.error("Student dashboard error:", error)
+    res.status(500).json({ message: "Server error" })
+  }
+})
+
+// Get student insights
+router.get("/insights", authenticate, authorize("student"), async (req, res) => {
+  try {
+    const studentId = req.user._id
+
+    // Get enrolled courses with detailed assignment and attendance data
+    const courses = await Course.find({
+      enrolledStudents: studentId,
+      isActive: true,
+    })
+      .populate("faculty", "name email")
+      .select("title code faculty assignments attendance")
+
+    const insights = {
+      academicPerformance: {
+        totalCourses: courses.length,
+        totalAssignments: 0,
+        submittedAssignments: 0,
+        gradedAssignments: 0,
+        averageScore: 0,
+        totalMarks: 0,
+        obtainedMarks: 0,
+      },
+      attendanceOverview: {
+        totalClasses: 0,
+        attendedClasses: 0,
+        attendancePercentage: 0,
+      },
+      courseWisePerformance: [],
+    }
+
+    let totalScore = 0
+    let totalMaxMarks = 0
+
+    courses.forEach((course) => {
+      const courseData = {
+        courseId: course._id,
+        courseTitle: course.title,
+        courseCode: course.code,
+        faculty: course.faculty.name,
+        assignments: {
+          total: course.assignments.length,
+          submitted: 0,
+          graded: 0,
+          averageScore: 0,
+          totalMarks: 0,
+          obtainedMarks: 0,
+        },
+        attendance: {
+          totalClasses: 0,
+          attendedClasses: 0,
+          attendancePercentage: 0,
+        },
+      }
+
+      // Calculate assignment performance
+      course.assignments.forEach((assignment) => {
+        insights.academicPerformance.totalAssignments++
+        const submission = assignment.submissions.find((sub) => sub.student.toString() === studentId.toString())
+
+        if (submission) {
+          insights.academicPerformance.submittedAssignments++
+          courseData.assignments.submitted++
+
+          if (submission.isGraded) {
+            insights.academicPerformance.gradedAssignments++
+            courseData.assignments.graded++
+
+            const marks = submission.marks || 0
+            const maxMarks = assignment.maxMarks || 0
+
+            insights.academicPerformance.obtainedMarks += marks
+            insights.academicPerformance.totalMarks += maxMarks
+            courseData.assignments.obtainedMarks += marks
+            courseData.assignments.totalMarks += maxMarks
+
+            totalScore += marks
+            totalMaxMarks += maxMarks
+          }
+        }
+      })
+
+      // Calculate course assignment average
+      if (courseData.assignments.totalMarks > 0) {
+        courseData.assignments.averageScore = Math.round(
+          (courseData.assignments.obtainedMarks / courseData.assignments.totalMarks) * 100,
+        )
+      }
+
+      // Calculate attendance
+      course.attendance.forEach((attendanceRecord) => {
+        const studentAttendance = attendanceRecord.students.find(
+          (student) => student.student.toString() === studentId.toString(),
+        )
+
+        if (studentAttendance) {
+          courseData.attendance.totalClasses++
+          insights.attendanceOverview.totalClasses++
+
+          if (studentAttendance.status === "present") {
+            courseData.attendance.attendedClasses++
+            insights.attendanceOverview.attendedClasses++
+          }
+        }
+      })
+
+      // Calculate course attendance percentage
+      if (courseData.attendance.totalClasses > 0) {
+        courseData.attendance.attendancePercentage = Math.round(
+          (courseData.attendance.attendedClasses / courseData.attendance.totalClasses) * 100,
+        )
+      }
+
+      insights.courseWisePerformance.push(courseData)
+    })
+
+    // Calculate overall averages
+    if (insights.academicPerformance.totalMarks > 0) {
+      insights.academicPerformance.averageScore = Math.round(
+        (insights.academicPerformance.obtainedMarks / insights.academicPerformance.totalMarks) * 100,
+      )
+    }
+
+    if (insights.attendanceOverview.totalClasses > 0) {
+      insights.attendanceOverview.attendancePercentage = Math.round(
+        (insights.attendanceOverview.attendedClasses / insights.attendanceOverview.totalClasses) * 100,
+      )
+    }
+
+    res.json(insights)
+  } catch (error) {
+    console.error("Student insights error:", error)
+    res.status(500).json({ message: "Server error" })
+  }
+})
+
 // Get student courses
 router.get("/courses", authenticate, authorize("student"), async (req, res) => {
   try {
     const courses = await Course.find({
       enrolledStudents: req.user._id,
+      isActive: true,
     })
       .populate("faculty", "name email")
       .sort({ createdAt: -1 })
@@ -41,7 +263,7 @@ router.get("/courses", authenticate, authorize("student"), async (req, res) => {
   }
 })
 
-// Get single course for student
+// Get course details
 router.get("/courses/:courseId", authenticate, authorize("student"), async (req, res) => {
   try {
     const { courseId } = req.params
@@ -49,17 +271,18 @@ router.get("/courses/:courseId", authenticate, authorize("student"), async (req,
     const course = await Course.findOne({
       _id: courseId,
       enrolledStudents: req.user._id,
+      isActive: true,
     })
       .populate("faculty", "name email")
       .populate("assignments.submissions.student", "name email userId")
 
     if (!course) {
-      return res.status(404).json({ message: "Course not found or you're not enrolled" })
+      return res.status(404).json({ message: "Course not found" })
     }
 
     res.json(course)
   } catch (error) {
-    console.error("Get course error:", error)
+    console.error("Get course details error:", error)
     res.status(500).json({ message: "Server error" })
   }
 })
@@ -69,7 +292,7 @@ router.post(
   "/courses/:courseId/assignments/:assignmentId/submit",
   authenticate,
   authorize("student"),
-  upload.single("file"),
+  upload.array("files", 5),
   async (req, res) => {
     try {
       const { courseId, assignmentId } = req.params
@@ -77,10 +300,11 @@ router.post(
       const course = await Course.findOne({
         _id: courseId,
         enrolledStudents: req.user._id,
+        isActive: true,
       })
 
       if (!course) {
-        return res.status(404).json({ message: "Course not found or you're not enrolled" })
+        return res.status(404).json({ message: "Course not found" })
       }
 
       const assignment = course.assignments.id(assignmentId)
@@ -88,7 +312,12 @@ router.post(
         return res.status(404).json({ message: "Assignment not found" })
       }
 
-      // Check if already submitted
+      // Check if assignment is overdue
+      if (new Date() > assignment.dueDate) {
+        return res.status(400).json({ message: "Assignment submission deadline has passed" })
+      }
+
+      // Check if student has already submitted
       const existingSubmission = assignment.submissions.find(
         (sub) => sub.student.toString() === req.user._id.toString(),
       )
@@ -97,24 +326,19 @@ router.post(
         return res.status(400).json({ message: "Assignment already submitted" })
       }
 
-      // Check if overdue
-      if (new Date() > assignment.dueDate) {
-        return res.status(400).json({ message: "Assignment submission deadline has passed" })
+      if (!req.files || req.files.length === 0) {
+        return res.status(400).json({ message: "At least one file is required" })
       }
 
       const submission = {
         student: req.user._id,
+        files: req.files.map((file) => ({
+          filename: file.originalname,
+          data: file.buffer,
+          contentType: file.mimetype,
+          size: file.size,
+        })),
         submittedAt: new Date(),
-        files: req.file
-          ? [
-              {
-                filename: req.file.originalname,
-                data: req.file.buffer,
-                contentType: req.file.mimetype,
-                size: req.file.size,
-              },
-            ]
-          : [],
       }
 
       assignment.submissions.push(submission)
@@ -127,7 +351,7 @@ router.post(
         req.user._id,
         "Assignment",
         assignment._id,
-        { courseId, assignmentTitle: assignment.title },
+        { courseId, courseTitle: course.title },
       )
 
       res.json({ message: "Assignment submitted successfully" })
@@ -150,10 +374,11 @@ router.get(
       const course = await Course.findOne({
         _id: courseId,
         enrolledStudents: req.user._id,
+        isActive: true,
       })
 
       if (!course) {
-        return res.status(404).json({ message: "Course not found or you're not enrolled" })
+        return res.status(404).json({ message: "Course not found" })
       }
 
       const material = course.materials.id(materialId)
@@ -183,10 +408,11 @@ router.get(
       const course = await Course.findOne({
         _id: courseId,
         enrolledStudents: req.user._id,
+        isActive: true,
       })
 
       if (!course) {
-        return res.status(404).json({ message: "Course not found or you're not enrolled" })
+        return res.status(404).json({ message: "Course not found" })
       }
 
       const assignment = course.assignments.id(assignmentId)
@@ -209,15 +435,77 @@ router.get(
   },
 )
 
-// Get student events
+// Get student attendance
+router.get("/attendance", authenticate, authorize("student"), async (req, res) => {
+  try {
+    const studentId = req.user._id
+
+    const courses = await Course.find({
+      enrolledStudents: studentId,
+      isActive: true,
+    })
+      .populate("faculty", "name email")
+      .select("title code faculty attendance")
+
+    const attendanceData = courses.map((course) => {
+      const courseAttendance = {
+        courseId: course._id,
+        courseTitle: course.title,
+        courseCode: course.code,
+        faculty: course.faculty.name,
+        totalClasses: 0,
+        attendedClasses: 0,
+        attendancePercentage: 0,
+        records: [],
+      }
+
+      course.attendance.forEach((record) => {
+        const studentRecord = record.students.find((student) => student.student.toString() === studentId.toString())
+
+        if (studentRecord) {
+          courseAttendance.totalClasses++
+          const attended = studentRecord.status === "present"
+          if (attended) {
+            courseAttendance.attendedClasses++
+          }
+
+          courseAttendance.records.push({
+            date: record.date,
+            topic: record.topic,
+            status: studentRecord.status,
+            markedAt: studentRecord.markedAt,
+          })
+        }
+      })
+
+      // Calculate attendance percentage
+      if (courseAttendance.totalClasses > 0) {
+        courseAttendance.attendancePercentage = Math.round(
+          (courseAttendance.attendedClasses / courseAttendance.totalClasses) * 100,
+        )
+      }
+
+      // Sort records by date (newest first)
+      courseAttendance.records.sort((a, b) => new Date(b.date) - new Date(a.date))
+
+      return courseAttendance
+    })
+
+    res.json(attendanceData)
+  } catch (error) {
+    console.error("Get student attendance error:", error)
+    res.status(500).json({ message: "Server error" })
+  }
+})
+
+// Get events
 router.get("/events", authenticate, authorize("student"), async (req, res) => {
   try {
     const events = await Event.find({
       status: "approved",
-      isActive: true,
+      $or: [{ department: req.user.department }, { department: { $exists: false } }],
     })
       .populate("organizer", "name email")
-      .populate("registeredStudents.student", "name email userId")
       .sort({ date: 1 })
 
     res.json(events)
@@ -241,21 +529,20 @@ router.post("/events/:eventId/register", authenticate, authorize("student"), asy
       return res.status(400).json({ message: "Event is not approved for registration" })
     }
 
+    if (new Date() > event.date) {
+      return res.status(400).json({ message: "Event registration has closed" })
+    }
+
     // Check if already registered
     const alreadyRegistered = event.registeredStudents.some((reg) => reg.student.toString() === req.user._id.toString())
 
     if (alreadyRegistered) {
-      return res.status(400).json({ message: "You are already registered for this event" })
+      return res.status(400).json({ message: "Already registered for this event" })
     }
 
     // Check capacity
     if (event.maxParticipants > 0 && event.registeredStudents.length >= event.maxParticipants) {
       return res.status(400).json({ message: "Event is full" })
-    }
-
-    // Check if event has passed
-    if (new Date(event.date) < new Date()) {
-      return res.status(400).json({ message: "Cannot register for past events" })
     }
 
     event.registeredStudents.push({
@@ -272,29 +559,28 @@ router.post("/events/:eventId/register", authenticate, authorize("student"), asy
       req.user._id,
       "Event",
       event._id,
-      { eventTitle: event.title },
     )
 
-    res.json({ message: "Successfully registered for event" })
+    res.json({ message: "Successfully registered for the event" })
   } catch (error) {
     console.error("Register for event error:", error)
     res.status(500).json({ message: "Server error" })
   }
 })
 
-// Get student notifications
+// Get notifications
 router.get("/notifications", authenticate, authorize("student"), async (req, res) => {
   try {
     const notifications = await Notification.find({
       $or: [
-        { recipients: "students" },
-        { recipients: "all" },
-        { recipients: "department", department: req.user.department },
+        { targetRole: "student" },
+        { targetRole: { $exists: false } },
+        { department: req.user.department },
+        { department: { $exists: false } },
       ],
     })
-      .populate("sender", "name")
+      .populate("createdBy", "name email")
       .sort({ createdAt: -1 })
-      .limit(50)
 
     res.json(notifications)
   } catch (error) {
@@ -303,154 +589,65 @@ router.get("/notifications", authenticate, authorize("student"), async (req, res
   }
 })
 
-// Get student attendance
-router.get("/attendance", authenticate, authorize("student"), async (req, res) => {
-  try {
-    const courses = await Course.find({
-      enrolledStudents: req.user._id,
-    })
-      .populate("faculty", "name")
-      .select("title code attendance")
-
-    const attendanceData = []
-
-    courses.forEach((course) => {
-      course.attendance.forEach((record) => {
-        const studentAttendance = record.students.find((s) => s.student.toString() === req.user._id.toString())
-
-        if (studentAttendance) {
-          attendanceData.push({
-            courseTitle: course.title,
-            courseCode: course.code,
-            date: record.date,
-            topic: record.topic,
-            status: studentAttendance.status,
-          })
-        }
-      })
-    })
-
-    // Sort by date (newest first)
-    attendanceData.sort((a, b) => new Date(b.date) - new Date(a.date))
-
-    res.json(attendanceData)
-  } catch (error) {
-    console.error("Get attendance error:", error)
-    res.status(500).json({ message: "Server error" })
-  }
-})
-
-// Get student performance insights
-router.get("/insights", authenticate, authorize("student"), async (req, res) => {
-  try {
-    const courses = await Course.find({
-      enrolledStudents: req.user._id,
-    }).select("title code assignments attendance")
-
-    const insights = {
-      totalCourses: courses.length,
-      totalAssignments: 0,
-      submittedAssignments: 0,
-      gradedAssignments: 0,
-      averageGrade: 0,
-      attendancePercentage: 0,
-      courseWiseData: [],
-    }
-
-    let totalGrades = 0
-    let totalAttendanceRecords = 0
-    let presentCount = 0
-
-    courses.forEach((course) => {
-      const courseData = {
-        courseTitle: course.title,
-        courseCode: course.code,
-        assignments: 0,
-        submitted: 0,
-        graded: 0,
-        averageGrade: 0,
-        attendancePercentage: 0,
-      }
-
-      // Assignment data
-      course.assignments.forEach((assignment) => {
-        insights.totalAssignments++
-        courseData.assignments++
-
-        const submission = assignment.submissions.find((sub) => sub.student.toString() === req.user._id.toString())
-
-        if (submission) {
-          insights.submittedAssignments++
-          courseData.submitted++
-
-          if (submission.isGraded) {
-            insights.gradedAssignments++
-            courseData.graded++
-            totalGrades += submission.marks
-            courseData.averageGrade += submission.marks
-          }
-        }
-      })
-
-      if (courseData.graded > 0) {
-        courseData.averageGrade = courseData.averageGrade / courseData.graded
-      }
-
-      // Attendance data
-      let coursePresentCount = 0
-      let courseAttendanceRecords = 0
-
-      course.attendance.forEach((record) => {
-        const studentAttendance = record.students.find((s) => s.student.toString() === req.user._id.toString())
-
-        if (studentAttendance) {
-          totalAttendanceRecords++
-          courseAttendanceRecords++
-
-          if (studentAttendance.status === "present") {
-            presentCount++
-            coursePresentCount++
-          }
-        }
-      })
-
-      if (courseAttendanceRecords > 0) {
-        courseData.attendancePercentage = (coursePresentCount / courseAttendanceRecords) * 100
-      }
-
-      insights.courseWiseData.push(courseData)
-    })
-
-    if (insights.gradedAssignments > 0) {
-      insights.averageGrade = totalGrades / insights.gradedAssignments
-    }
-
-    if (totalAttendanceRecords > 0) {
-      insights.attendancePercentage = (presentCount / totalAttendanceRecords) * 100
-    }
-
-    res.json(insights)
-  } catch (error) {
-    console.error("Get insights error:", error)
-    res.status(500).json({ message: "Server error" })
-  }
-})
-
-// Get placement records for student's department
+// Get placements
 router.get("/placements", authenticate, authorize("student"), async (req, res) => {
   try {
-    const { year } = req.query
-    const filter = { department: req.user.department }
-
-    if (year) {
-      filter.yearOfPlacement = Number.parseInt(year)
-    }
-
-    const placements = await Placement.find(filter).sort({ yearOfPlacement: -1, createdAt: -1 })
+    const placements = await Placement.find({
+      status: "active",
+      $or: [{ department: req.user.department }, { department: { $exists: false } }],
+    }).sort({ applicationDeadline: 1 })
 
     res.json(placements)
   } catch (error) {
     console.error("Get placements error:", error)
+    res.status(500).json({ message: "Server error" })
+  }
+})
+
+// Apply for placement
+router.post("/placements/:placementId/apply", authenticate, authorize("student"), async (req, res) => {
+  try {
+    const { placementId } = req.params
+
+    const placement = await Placement.findById(placementId)
+    if (!placement) {
+      return res.status(404).json({ message: "Placement not found" })
+    }
+
+    if (placement.status !== "active") {
+      return res.status(400).json({ message: "Placement is not active" })
+    }
+
+    if (new Date() > placement.applicationDeadline) {
+      return res.status(400).json({ message: "Application deadline has passed" })
+    }
+
+    // Check if already applied
+    const alreadyApplied = placement.appliedStudents.some((app) => app.student.toString() === req.user._id.toString())
+
+    if (alreadyApplied) {
+      return res.status(400).json({ message: "Already applied for this placement" })
+    }
+
+    placement.appliedStudents.push({
+      student: req.user._id,
+      appliedAt: new Date(),
+    })
+
+    await placement.save()
+
+    // Log activity
+    await logActivity(
+      "placement_applied",
+      `Student ${req.user.name} applied for placement "${placement.company} - ${placement.position}"`,
+      req.user._id,
+      "Placement",
+      placement._id,
+    )
+
+    res.json({ message: "Successfully applied for the placement" })
+  } catch (error) {
+    console.error("Apply for placement error:", error)
     res.status(500).json({ message: "Server error" })
   }
 })
