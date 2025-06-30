@@ -788,7 +788,7 @@ const UserManagementModal = ({ onClose, onUpdate }) => {
 }
 
 // Placement Upload Modal Component - COMPLETELY REWRITTEN WITH BETTER ERROR HANDLING
-const PlacementUploadModal = ({ onClose }) => {
+export const PlacementUploadModal = ({ onClose }) => {
   const [file, setFile] = useState(null)
   const [loading, setLoading] = useState(false)
   const [studentData, setStudentData] = useState(null)
@@ -1132,7 +1132,7 @@ const PendingEventsModal = ({ events, onClose, onApprove }) => {
 }
 
 // Broadcast Form Component - UPDATED WITH BETTER RECIPIENT HANDLING
-const BroadcastForm = ({ onClose }) => {
+export const BroadcastForm = ({ onClose }) => {
   const [formData, setFormData] = useState({
     title: "",
     message: "",

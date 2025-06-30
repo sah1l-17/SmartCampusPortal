@@ -2,46 +2,33 @@
 
 import { useState, useEffect } from "react"
 import { useAuth } from "../contexts/AuthContext"
-import {
-  Calendar,
-  MapPin,
-  Users,
-  Clock,
-  Plus,
-  CheckCircle,
-  XCircle,
-  AlertCircle,
-  Download,
-  Trash2,
-  Eye,
-} from "lucide-react"
+import { Calendar, MapPin, Users, Plus, Search, Filter, Edit, Check, X, AlertCircle } from "lucide-react"
 import axios from "axios"
-import toast from "react-hot-toast"
 import LoadingSpinner from "../components/LoadingSpinner"
+import toast from "react-hot-toast"
 
 const Events = () => {
   const { user } = useAuth()
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
-  const [showCreateForm, setShowCreateForm] = useState(false)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [statusFilter, setStatusFilter] = useState("all")
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [showPendingModal, setShowPendingModal] = useState(false)
+  const [showCapacityModal, setShowCapacityModal] = useState(false)
+  const [pendingEvents, setPendingEvents] = useState([])
   const [selectedEvent, setSelectedEvent] = useState(null)
-  const [showEventModal, setShowEventModal] = useState(false)
 
   useEffect(() => {
     fetchEvents()
-  }, [])
+    if (user?.role === "admin") {
+      fetchPendingEvents()
+    }
+  }, [user])
 
   const fetchEvents = async () => {
     try {
-      setLoading(true)
-      let endpoint = "/events"
-      if (user?.role === "faculty") {
-        endpoint = "/faculty/events"
-      } else if (user?.role === "student") {
-        endpoint = "/student/events"
-      }
-
-      const response = await axios.get(endpoint)
+      const response = await axios.get("/events")
       setEvents(response.data)
     } catch (error) {
       console.error("Fetch events error:", error)
@@ -51,62 +38,53 @@ const Events = () => {
     }
   }
 
-  const handleRegister = async (eventId) => {
+  const fetchPendingEvents = async () => {
     try {
-      await axios.post(`/student/events/${eventId}/register`)
+      const response = await axios.get("/admin/pending-events")
+      setPendingEvents(response.data)
+    } catch (error) {
+      console.error("Fetch pending events error:", error)
+    }
+  }
+
+  const handleApproveEvent = async (eventId, status) => {
+    try {
+      await axios.patch(`/admin/events/${eventId}/status`, { status })
+      toast.success(`Event ${status} successfully`)
+      fetchPendingEvents()
+      fetchEvents()
+    } catch (error) {
+      toast.error(`Failed to ${status} event`)
+    }
+  }
+
+  const handleUpdateCapacity = async (eventId, newCapacity) => {
+    try {
+      await axios.patch(`/admin/events/${eventId}/capacity`, {
+        maxParticipants: Number(newCapacity),
+      })
+      toast.success("Event capacity updated successfully")
+      fetchEvents()
+    } catch (error) {
+      toast.error("Failed to update event capacity")
+    }
+  }
+
+  const registerForEvent = async (eventId) => {
+    try {
+      await axios.post(`/events/${eventId}/register`)
       toast.success("Successfully registered for event")
       fetchEvents()
     } catch (error) {
-      const message = error.response?.data?.message || "Failed to register for event"
-      toast.error(message)
+      toast.error(error.response?.data?.message || "Failed to register for event")
     }
   }
 
-  const handleDeleteEvent = async (eventId) => {
-    if (window.confirm("Are you sure you want to delete this event?")) {
-      try {
-        await axios.delete(`/faculty/events/${eventId}`)
-        toast.success("Event deleted successfully")
-        fetchEvents()
-      } catch (error) {
-        const message = error.response?.data?.message || "Failed to delete event"
-        toast.error(message)
-      }
-    }
-  }
-
-  const handleDownloadRegistrations = async (eventId, eventTitle) => {
-    try {
-      const response = await axios.get(`/faculty/events/${eventId}/registrations/download`, {
-        responseType: "blob",
-      })
-
-      const url = window.URL.createObjectURL(new Blob([response.data]))
-      const link = document.createElement("a")
-      link.href = url
-      link.setAttribute("download", `${eventTitle}_registrations.xlsx`)
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      window.URL.revokeObjectURL(url)
-
-      toast.success("Registration list downloaded successfully")
-    } catch (error) {
-      console.error("Download error:", error)
-      toast.error("Failed to download registration list")
-    }
-  }
-
-  const handleViewEvent = async (eventId) => {
-    try {
-      const response = await axios.get(`/events/${eventId}`)
-      setSelectedEvent(response.data)
-      setShowEventModal(true)
-    } catch (error) {
-      console.error("Fetch event details error:", error)
-      toast.error("Failed to fetch event details")
-    }
-  }
+  const filteredEvents = events.filter((event) => {
+    const matchesSearch = event.title.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesStatus = statusFilter === "all" || event.status === statusFilter
+    return matchesSearch && matchesStatus
+  })
 
   if (loading) {
     return <LoadingSpinner text="Loading events..." />
@@ -117,358 +95,165 @@ const Events = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Events</h1>
-          <p className="text-gray-600">
-            {user?.role === "faculty"
-              ? "Manage your events"
-              : user?.role === "admin"
-                ? "All events in the system"
-                : "Discover and register for events"}
-          </p>
+          <p className="text-gray-600">Discover and participate in campus events</p>
         </div>
-        {user?.role === "faculty" && (
-          <button onClick={() => setShowCreateForm(true)} className="btn btn-primary flex items-center">
-            <Plus className="h-4 w-4 mr-2" />
-            Create Event
-          </button>
-        )}
+        <div className="flex space-x-3">
+          {user?.role === "admin" && (
+            <>
+              <button onClick={() => setShowPendingModal(true)} className="btn btn-outline flex items-center">
+                <AlertCircle className="h-4 w-4 mr-2" />
+                Pending Events ({pendingEvents.length})
+              </button>
+              <button onClick={() => setShowCapacityModal(true)} className="btn btn-outline flex items-center">
+                <Edit className="h-4 w-4 mr-2" />
+                Manage Capacity
+              </button>
+            </>
+          )}
+          {user?.role === "faculty" && (
+            <button onClick={() => setShowCreateModal(true)} className="btn btn-primary flex items-center">
+              <Plus className="h-4 w-4 mr-2" />
+              Create Event
+            </button>
+          )}
+        </div>
       </div>
 
-      {showCreateForm && <CreateEventForm onClose={() => setShowCreateForm(false)} onSuccess={fetchEvents} />}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {events.map((event) => (
-          <EventCard
-            key={event._id}
-            event={event}
-            onRegister={handleRegister}
-            onDownloadRegistrations={handleDownloadRegistrations}
-            onDeleteEvent={handleDeleteEvent}
-            onViewEvent={handleViewEvent}
+      {/* Search and Filter */}
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+          <input
+            type="text"
+            placeholder="Search events..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="input pl-10"
           />
+        </div>
+        <div className="flex items-center space-x-2">
+          <Filter className="h-4 w-4 text-gray-400" />
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="input min-w-[120px]"
+          >
+            <option value="all">All Events</option>
+            <option value="approved">Approved</option>
+            <option value="pending">Pending</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Events Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {filteredEvents.map((event) => (
+          <EventCard key={event._id} event={event} onRegister={registerForEvent} user={user} />
         ))}
       </div>
 
-      {events.length === 0 && (
+      {filteredEvents.length === 0 && (
         <div className="text-center py-12">
           <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No events found</h3>
           <p className="text-gray-600">
-            {user?.role === "faculty" ? "Create your first event to get started" : "No events available at the moment"}
+            {searchTerm || statusFilter !== "all"
+              ? "Try adjusting your search or filter criteria"
+              : "No events have been created yet"}
           </p>
         </div>
       )}
 
-      {/* Event Detail Modal */}
-      {showEventModal && selectedEvent && (
-        <EventDetailModal
-          event={selectedEvent}
-          onClose={() => {
-            setShowEventModal(false)
-            setSelectedEvent(null)
-          }}
-          onRegister={handleRegister}
+      {/* Modals */}
+      {showCreateModal && <CreateEventModal onClose={() => setShowCreateModal(false)} onSuccess={fetchEvents} />}
+
+      {showPendingModal && (
+        <PendingEventsModal
+          events={pendingEvents}
+          onClose={() => setShowPendingModal(false)}
+          onApprove={handleApproveEvent}
+        />
+      )}
+
+      {showCapacityModal && (
+        <CapacityManagementModal
+          events={events}
+          onClose={() => setShowCapacityModal(false)}
+          onUpdate={handleUpdateCapacity}
         />
       )}
     </div>
   )
 }
 
-const EventCard = ({ event, onRegister, onDownloadRegistrations, onDeleteEvent, onViewEvent }) => {
-  const { user } = useAuth()
-
-  const getStatusBadge = (status) => {
-    switch (status) {
-      case "approved":
-        return (
-          <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-            Approved
-          </span>
-        )
-      case "pending":
-        return (
-          <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
-            Pending
-          </span>
-        )
-      case "rejected":
-        return (
-          <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
-            Rejected
-          </span>
-        )
-      default:
-        return null
-    }
-  }
-
-  const isRegistered = event.registeredStudents?.some(
-    (reg) => reg.student === user?.id || reg.student?._id === user?.id,
-  )
-
-  const isPastEvent = new Date(event.date) < new Date()
+// Event Card Component
+const EventCard = ({ event, onRegister, user }) => {
+  const isRegistered = event.registeredStudents?.some((student) => student._id === user?.id)
   const isFull = event.maxParticipants > 0 && event.registeredStudents?.length >= event.maxParticipants
-  const isOwnEvent = user?.role === "faculty" && event.organizer?._id === user?.id
 
   return (
     <div className="card p-6 hover:shadow-lg transition-shadow">
       <div className="flex items-start justify-between mb-4">
-        <div className="flex-1">
-          <h3
-            className="text-lg font-semibold text-gray-900 mb-2 cursor-pointer hover:text-blue-600"
-            onClick={() => onViewEvent(event._id)}
-          >
-            {event.title}
-          </h3>
-          <p className="text-sm text-gray-600 mb-3 line-clamp-2">{event.description}</p>
+        <h3 className="text-lg font-semibold text-gray-900">{event.title}</h3>
+        <span
+          className={`px-2 py-1 text-xs font-semibold rounded-full ${
+            event.status === "approved"
+              ? "bg-green-100 text-green-800"
+              : event.status === "pending"
+                ? "bg-yellow-100 text-yellow-800"
+                : "bg-red-100 text-red-800"
+          }`}
+        >
+          {event.status}
+        </span>
+      </div>
+
+      <p className="text-gray-600 text-sm mb-4 line-clamp-3">{event.description}</p>
+
+      <div className="space-y-2 mb-4">
+        <div className="flex items-center text-sm text-gray-500">
+          <Calendar className="h-4 w-4 mr-2" />
+          {new Date(event.date).toLocaleDateString()} at {event.time}
         </div>
-        <div className="flex flex-col items-end space-y-2">
-          {(user?.role === "faculty" || user?.role === "admin") && getStatusBadge(event.status)}
-          <button onClick={() => onViewEvent(event._id)} className="btn btn-outline btn-sm flex items-center">
-            <Eye className="h-3 w-3 mr-1" />
-            View
-          </button>
-          {isOwnEvent && (
-            <button
-              onClick={() => onDeleteEvent(event._id)}
-              className="btn btn-outline btn-sm text-red-600 hover:bg-red-50 flex items-center"
-            >
-              <Trash2 className="h-3 w-3 mr-1" />
-              Delete
+        <div className="flex items-center text-sm text-gray-500">
+          <MapPin className="h-4 w-4 mr-2" />
+          {event.venue}
+        </div>
+        <div className="flex items-center text-sm text-gray-500">
+          <Users className="h-4 w-4 mr-2" />
+          {event.registeredStudents?.length || 0}
+          {event.maxParticipants > 0 && ` / ${event.maxParticipants}`} registered
+        </div>
+      </div>
+
+      {user?.role === "student" && event.status === "approved" && (
+        <div className="mt-4">
+          {isRegistered ? (
+            <button disabled className="btn btn-outline w-full">
+              <Check className="h-4 w-4 mr-2" />
+              Registered
+            </button>
+          ) : isFull ? (
+            <button disabled className="btn btn-outline w-full">
+              Event Full
+            </button>
+          ) : (
+            <button onClick={() => onRegister(event._id)} className="btn btn-primary w-full">
+              Register
             </button>
           )}
         </div>
-      </div>
-
-      <div className="space-y-2 text-sm text-gray-600 mb-4">
-        <div className="flex items-center">
-          <Calendar className="h-4 w-4 mr-2" />
-          <span>
-            {new Date(event.date).toLocaleDateString()} at {event.time}
-          </span>
-        </div>
-        <div className="flex items-center">
-          <MapPin className="h-4 w-4 mr-2" />
-          <span>{event.venue}</span>
-        </div>
-        <div className="flex items-center">
-          <Users className="h-4 w-4 mr-2" />
-          <span>
-            {event.registeredStudents?.length || 0}
-            {event.maxParticipants > 0 && ` / ${event.maxParticipants}`} registered
-          </span>
-        </div>
-        {event.organizer && (
-          <div className="flex items-center">
-            <Clock className="h-4 w-4 mr-2" />
-            <span>Organized by {event.organizer.name}</span>
-          </div>
-        )}
-      </div>
-
-      {/* Show registered students for faculty's own events */}
-      {isOwnEvent && event.registeredStudents && event.registeredStudents.length > 0 && (
-        <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-          <h4 className="text-sm font-medium text-gray-700 mb-2">Registered Students:</h4>
-          <div className="space-y-1">
-            {event.registeredStudents.slice(0, 3).map((reg) => (
-              <div key={reg._id} className="text-xs text-gray-600">
-                {reg.student.name} ({reg.student.userId})
-              </div>
-            ))}
-            {event.registeredStudents.length > 3 && (
-              <div className="text-xs text-gray-500">+{event.registeredStudents.length - 3} more students</div>
-            )}
-          </div>
-        </div>
       )}
 
-      <div className="flex items-center justify-between">
-        {user?.role === "student" && event.status === "approved" && (
-          <div className="flex-1">
-            {isRegistered ? (
-              <div className="flex items-center text-green-600">
-                <CheckCircle className="h-4 w-4 mr-2" />
-                <span className="text-sm font-medium">Registered</span>
-              </div>
-            ) : isPastEvent ? (
-              <div className="flex items-center text-gray-500">
-                <XCircle className="h-4 w-4 mr-2" />
-                <span className="text-sm">Event has ended</span>
-              </div>
-            ) : isFull ? (
-              <div className="flex items-center text-red-600">
-                <AlertCircle className="h-4 w-4 mr-2" />
-                <span className="text-sm">Event is full</span>
-              </div>
-            ) : (
-              <button onClick={() => onRegister(event._id)} className="btn btn-primary btn-sm">
-                Register
-              </button>
-            )}
-          </div>
-        )}
-
-        {isOwnEvent && event.registeredStudents && event.registeredStudents.length > 0 && (
-          <button
-            onClick={() => onDownloadRegistrations(event._id, event.title)}
-            className="btn btn-outline btn-sm flex items-center ml-2"
-          >
-            <Download className="h-4 w-4 mr-1" />
-            Download List
-          </button>
-        )}
+      <div className="mt-4 text-xs text-gray-500">
+        Organized by: {event.organizer?.name} ({event.organizer?.department})
       </div>
     </div>
   )
 }
 
-const EventDetailModal = ({ event, onClose, onRegister }) => {
-  const { user } = useAuth()
-  const [imageError, setImageError] = useState(false)
-
-  const isRegistered = event.registeredStudents?.some(
-    (reg) => reg.student === user?.id || reg.student?._id === user?.id,
-  )
-
-  const isPastEvent = new Date(event.date) < new Date()
-  const isFull = event.maxParticipants > 0 && event.registeredStudents?.length >= event.maxParticipants
-
-  const getImageUrl = () => {
-    if (event.image && !imageError) {
-      return `${axios.defaults.baseURL}/events/${event._id}/image`
-    }
-    return null
-  }
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-gray-900">{event.title}</h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded">
-            <XCircle className="h-5 w-5" />
-          </button>
-        </div>
-
-        <div className="p-6">
-          {/* Event Image */}
-          {getImageUrl() && (
-            <div className="mb-6">
-              <img
-                src={getImageUrl() || "/placeholder.svg"}
-                alt={event.title}
-                className="w-full h-64 object-cover rounded-lg"
-                onError={() => setImageError(true)}
-              />
-            </div>
-          )}
-
-          {/* Event Details */}
-          <div className="space-y-4">
-            <div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Description</h3>
-              <p className="text-gray-700 whitespace-pre-wrap">{event.description}</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <h4 className="font-medium text-gray-900 mb-2">Event Details</h4>
-                <div className="space-y-2 text-sm text-gray-600">
-                  <div className="flex items-center">
-                    <Calendar className="h-4 w-4 mr-2" />
-                    <span>
-                      {new Date(event.date).toLocaleDateString()} at {event.time}
-                    </span>
-                  </div>
-                  <div className="flex items-center">
-                    <MapPin className="h-4 w-4 mr-2" />
-                    <span>{event.venue}</span>
-                  </div>
-                  <div className="flex items-center">
-                    <Users className="h-4 w-4 mr-2" />
-                    <span>
-                      {event.registeredStudents?.length || 0}
-                      {event.maxParticipants > 0 && ` / ${event.maxParticipants}`} registered
-                    </span>
-                  </div>
-                  {event.organizer && (
-                    <div className="flex items-center">
-                      <Clock className="h-4 w-4 mr-2" />
-                      <span>Organized by {event.organizer.name}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <h4 className="font-medium text-gray-900 mb-2">Registration Status</h4>
-                <div className="space-y-2">
-                  {user?.role === "student" && event.status === "approved" && (
-                    <div>
-                      {isRegistered ? (
-                        <div className="flex items-center text-green-600">
-                          <CheckCircle className="h-4 w-4 mr-2" />
-                          <span className="text-sm font-medium">You are registered</span>
-                        </div>
-                      ) : isPastEvent ? (
-                        <div className="flex items-center text-gray-500">
-                          <XCircle className="h-4 w-4 mr-2" />
-                          <span className="text-sm">Event has ended</span>
-                        </div>
-                      ) : isFull ? (
-                        <div className="flex items-center text-red-600">
-                          <AlertCircle className="h-4 w-4 mr-2" />
-                          <span className="text-sm">Event is full</span>
-                        </div>
-                      ) : (
-                        <button onClick={() => onRegister(event._id)} className="btn btn-primary">
-                          Register for Event
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Registered Students (for organizers) */}
-            {user?.role === "faculty" &&
-              event.organizer?._id === user?.id &&
-              event.registeredStudents &&
-              event.registeredStudents.length > 0 && (
-                <div>
-                  <h4 className="font-medium text-gray-900 mb-2">Registered Students</h4>
-                  <div className="max-h-40 overflow-y-auto">
-                    <div className="space-y-2">
-                      {event.registeredStudents.map((reg) => (
-                        <div key={reg._id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                          <div>
-                            <span className="font-medium">{reg.student.name}</span>
-                            <span className="text-sm text-gray-500 ml-2">({reg.student.userId})</span>
-                          </div>
-                          <span className="text-xs text-gray-500">
-                            {new Date(reg.registeredAt).toLocaleDateString()}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-          </div>
-        </div>
-
-        <div className="sticky bottom-0 bg-gray-50 px-6 py-4 flex justify-end">
-          <button onClick={onClose} className="btn btn-primary">
-            Close
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-const CreateEventForm = ({ onClose, onSuccess }) => {
+// Create Event Modal
+const CreateEventModal = ({ onClose, onSuccess }) => {
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -477,85 +262,19 @@ const CreateEventForm = ({ onClose, onSuccess }) => {
     venue: "",
     maxParticipants: "",
   })
-  const [image, setImage] = useState(null)
   const [loading, setLoading] = useState(false)
-  const [errors, setErrors] = useState({})
-
-  const handleChange = (e) => {
-    const { name, value } = e.target
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }))
-
-    // Clear error when user starts typing
-    if (errors[name]) {
-      setErrors((prev) => ({
-        ...prev,
-        [name]: "",
-      }))
-    }
-  }
-
-  const validateForm = () => {
-    const newErrors = {}
-
-    if (!formData.title.trim()) {
-      newErrors.title = "Event title is required"
-    }
-
-    if (!formData.description.trim()) {
-      newErrors.description = "Event description is required"
-    }
-
-    if (!formData.date) {
-      newErrors.date = "Event date is required"
-    }
-
-    if (!formData.time) {
-      newErrors.time = "Event time is required"
-    }
-
-    if (!formData.venue.trim()) {
-      newErrors.venue = "Event venue is required"
-    }
-
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
-  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-
-    if (!validateForm()) {
-      return
-    }
-
     setLoading(true)
 
     try {
-      const submitData = new FormData()
-      Object.keys(formData).forEach((key) => {
-        if (formData[key]) {
-          submitData.append(key, formData[key])
-        }
-      })
-
-      if (image) {
-        submitData.append("image", image)
-      }
-
-      await axios.post("/faculty/events", submitData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      })
-
+      await axios.post("/faculty/events", formData)
       toast.success("Event created successfully and sent for approval")
       onSuccess()
       onClose()
     } catch (error) {
-      console.error("Create event error:", error)
-      const message = error.response?.data?.message || "Failed to create event"
-      toast.error(message)
+      toast.error(error.response?.data?.message || "Failed to create event")
     } finally {
       setLoading(false)
     }
@@ -563,103 +282,79 @@ const CreateEventForm = ({ onClose, onSuccess }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
-        <h2 className="text-xl font-bold mb-4">Create New Event</h2>
+      <div className="bg-white rounded-lg p-6 w-full max-w-2xl">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold">Create New Event</h2>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="form-group">
-            <label className="form-label">Event Title</label>
+            <label className="form-label">Event Title *</label>
             <input
               type="text"
-              className={`input ${errors.title ? "border-red-500" : ""}`}
+              className="input"
               value={formData.title}
-              name="title"
-              onChange={handleChange}
+              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
               required
-              disabled={loading}
             />
-            {errors.title && <p className="form-error">{errors.title}</p>}
           </div>
 
           <div className="form-group">
-            <label className="form-label">Description</label>
+            <label className="form-label">Description *</label>
             <textarea
-              className={`input ${errors.description ? "border-red-500" : ""}`}
-              rows="3"
+              className="input"
+              rows={4}
               value={formData.description}
-              name="description"
-              onChange={handleChange}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               required
-              disabled={loading}
             />
-            {errors.description && <p className="form-error">{errors.description}</p>}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="form-group">
-              <label className="form-label">Date</label>
+              <label className="form-label">Date *</label>
               <input
                 type="date"
-                className={`input ${errors.date ? "border-red-500" : ""}`}
+                className="input"
                 value={formData.date}
-                name="date"
-                onChange={handleChange}
+                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                 required
-                disabled={loading}
               />
-              {errors.date && <p className="form-error">{errors.date}</p>}
             </div>
-
             <div className="form-group">
-              <label className="form-label">Time</label>
+              <label className="form-label">Time *</label>
               <input
                 type="time"
-                className={`input ${errors.time ? "border-red-500" : ""}`}
+                className="input"
                 value={formData.time}
-                name="time"
-                onChange={handleChange}
+                onChange={(e) => setFormData({ ...formData, time: e.target.value })}
                 required
-                disabled={loading}
               />
-              {errors.time && <p className="form-error">{errors.time}</p>}
             </div>
           </div>
 
           <div className="form-group">
-            <label className="form-label">Venue</label>
+            <label className="form-label">Venue *</label>
             <input
               type="text"
-              className={`input ${errors.venue ? "border-red-500" : ""}`}
+              className="input"
               value={formData.venue}
-              name="venue"
-              onChange={handleChange}
+              onChange={(e) => setFormData({ ...formData, venue: e.target.value })}
               required
-              disabled={loading}
             />
-            {errors.venue && <p className="form-error">{errors.venue}</p>}
           </div>
 
           <div className="form-group">
-            <label className="form-label">Max Participants (Optional)</label>
+            <label className="form-label">Maximum Participants (Optional)</label>
             <input
               type="number"
               className="input"
               value={formData.maxParticipants}
-              name="maxParticipants"
-              onChange={handleChange}
-              min="0"
-              disabled={loading}
-            />
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Event Image (Optional, Max 50MB)</label>
-            <input
-              type="file"
-              className="input"
-              accept="image/*"
-              onChange={(e) => setImage(e.target.files[0])}
-              disabled={loading}
+              onChange={(e) => setFormData({ ...formData, maxParticipants: e.target.value })}
+              placeholder="Leave empty for unlimited"
             />
           </div>
 
@@ -672,6 +367,157 @@ const CreateEventForm = ({ onClose, onSuccess }) => {
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  )
+}
+
+// Pending Events Modal
+const PendingEventsModal = ({ events, onClose, onApprove }) => {
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[80vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold">Pending Events</h2>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {events.length === 0 ? (
+          <p className="text-gray-600 text-center py-8">No pending events</p>
+        ) : (
+          <div className="space-y-4">
+            {events.map((event) => (
+              <div key={event._id} className="card p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-gray-900">{event.title}</h3>
+                    <p className="text-sm text-gray-600 mt-1">{event.description}</p>
+                    <div className="mt-2 text-sm text-gray-500">
+                      <p>
+                        <strong>Date:</strong> {new Date(event.date).toLocaleDateString()} at {event.time}
+                      </p>
+                      <p>
+                        <strong>Venue:</strong> {event.venue}
+                      </p>
+                      <p>
+                        <strong>Organizer:</strong> {event.organizer.name} ({event.organizer.department})
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex space-x-2 ml-4">
+                    <button
+                      onClick={() => onApprove(event._id, "approved")}
+                      className="btn btn-outline btn-sm text-green-600 hover:bg-green-50"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      onClick={() => onApprove(event._id, "rejected")}
+                      className="btn btn-outline btn-sm text-red-600 hover:bg-red-50"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Capacity Management Modal
+const CapacityManagementModal = ({ events, onClose, onUpdate }) => {
+  const [editingEvent, setEditingEvent] = useState(null)
+  const [newCapacity, setNewCapacity] = useState("")
+
+  const handleUpdateCapacity = (eventId) => {
+    if (!newCapacity || newCapacity < 0) {
+      toast.error("Please enter a valid capacity")
+      return
+    }
+    onUpdate(eventId, newCapacity)
+    setEditingEvent(null)
+    setNewCapacity("")
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 w-full max-w-6xl max-h-[80vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold">Event Capacity Management</h2>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          {events.map((event) => (
+            <div key={event._id} className="card p-4">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <h3 className="font-semibold text-gray-900">{event.title}</h3>
+                  <p className="text-sm text-gray-600 mt-1">{event.description}</p>
+                  <div className="mt-2 text-sm text-gray-500">
+                    <p>
+                      <strong>Date:</strong> {new Date(event.date).toLocaleDateString()} at {event.time}
+                    </p>
+                    <p>
+                      <strong>Venue:</strong> {event.venue}
+                    </p>
+                    <p>
+                      <strong>Current Capacity:</strong> {event.maxParticipants || "Unlimited"}
+                    </p>
+                    <p>
+                      <strong>Registered:</strong> {event.registeredStudents?.length || 0}
+                    </p>
+                  </div>
+                </div>
+                <div className="ml-4">
+                  {editingEvent === event._id ? (
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="number"
+                        min="0"
+                        value={newCapacity}
+                        onChange={(e) => setNewCapacity(e.target.value)}
+                        placeholder="New capacity"
+                        className="input w-32"
+                      />
+                      <button onClick={() => handleUpdateCapacity(event._id)} className="btn btn-primary btn-sm">
+                        Save
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditingEvent(null)
+                          setNewCapacity("")
+                        }}
+                        className="btn btn-outline btn-sm"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setEditingEvent(event._id)
+                        setNewCapacity(event.maxParticipants || "")
+                      }}
+                      className="btn btn-outline btn-sm flex items-center"
+                    >
+                      <Edit className="h-4 w-4 mr-1" />
+                      Edit Capacity
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )

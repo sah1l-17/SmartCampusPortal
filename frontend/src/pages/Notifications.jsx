@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from "react"
 import { useAuth } from "../contexts/AuthContext"
-import { Bell, AlertCircle, Info, Calendar, TrendingUp, Download, Paperclip, X, Eye } from "lucide-react"
+import { Bell, AlertCircle, Info, Calendar, TrendingUp, Download, Paperclip, X, Eye, Check, Plus } from "lucide-react"
 import axios from "axios"
 import toast from "react-hot-toast"
 import LoadingSpinner from "../components/LoadingSpinner"
+import { BroadcastForm } from "./Dashboard"
 
 const Notifications = () => {
   const { user } = useAuth()
@@ -13,6 +14,19 @@ const Notifications = () => {
   const [loading, setLoading] = useState(true)
   const [selectedNotification, setSelectedNotification] = useState(null)
   const [showModal, setShowModal] = useState(false)
+  const [showBroadcastForm, setShowBroadcastForm] = useState(false)
+  const [isMarkingAll, setIsMarkingAll] = useState(false)
+
+  // Create axios instance with default headers
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('token') // Adjust this based on how you store the token
+    return {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    }
+  }
 
   useEffect(() => {
     fetchNotifications()
@@ -20,8 +34,8 @@ const Notifications = () => {
 
   const fetchNotifications = async () => {
     try {
-      const response = await axios.get("/notifications")
-      console.log("Fetched notifications:", response.data.length)
+      setLoading(true)
+      const response = await axios.get("/notifications", getAuthHeaders())
       setNotifications(response.data)
     } catch (error) {
       console.error("Fetch notifications error:", error)
@@ -33,7 +47,7 @@ const Notifications = () => {
 
   const markAsRead = async (notificationId) => {
     try {
-      await axios.patch(`/notifications/${notificationId}/read`)
+      await axios.patch(`/notifications/${notificationId}/read`, {}, getAuthHeaders())
       setNotifications(
         notifications.map((notif) => (notif._id === notificationId ? { ...notif, isRead: true } : notif)),
       )
@@ -42,11 +56,25 @@ const Notifications = () => {
     }
   }
 
-  const openNotificationModal = (notification) => {
+  const markAllAsRead = async () => {
+    try {
+      setIsMarkingAll(true)
+      await axios.patch("/notifications/mark-all-read", {}, getAuthHeaders())
+      setNotifications(notifications.map(notif => ({ ...notif, isRead: true })))
+      toast.success("All notifications marked as read")
+    } catch (error) {
+      console.error("Mark all as read error:", error)
+      toast.error("Failed to mark all as read")
+    } finally {
+      setIsMarkingAll(false)
+    }
+  }
+
+  const openNotificationModal = async (notification) => {
     setSelectedNotification(notification)
     setShowModal(true)
     if (!notification.isRead) {
-      markAsRead(notification._id)
+      await markAsRead(notification._id)
     }
   }
 
@@ -57,8 +85,12 @@ const Notifications = () => {
 
   const downloadAttachment = async (notificationId, attachmentId, filename) => {
     try {
+      const token = localStorage.getItem('token')
       const response = await axios.get(`/notifications/${notificationId}/attachments/${attachmentId}/download`, {
         responseType: "blob",
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       })
 
       const url = window.URL.createObjectURL(new Blob([response.data]))
@@ -122,6 +154,8 @@ const Notifications = () => {
     return <LoadingSpinner text="Loading notifications..." />
   }
 
+  const unreadCount = notifications.filter((n) => !n.isRead).length
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -129,8 +163,32 @@ const Notifications = () => {
           <h1 className="text-2xl font-bold text-gray-900">Notifications</h1>
           <p className="text-gray-600">Stay updated with latest announcements</p>
         </div>
+        <div className="flex items-center space-x-3">
+          {unreadCount > 0 && (
+            <button
+              onClick={markAllAsRead}
+              disabled={isMarkingAll}
+              className="btn btn-outline flex items-center space-x-2"
+            >
+              <Check className="h-4 w-4" />
+              <span>{isMarkingAll ? "Marking..." : "Mark all as read"}</span>
+            </button>
+          )}
+          {user?.role === "admin" && (
+            <button
+              onClick={() => setShowBroadcastForm(true)}
+              className="btn btn-primary flex items-center space-x-2"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Broadcast</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between mb-4">
         <div className="text-sm text-gray-500">
-          {notifications.filter((n) => !n.isRead).length} unread notifications
+          {unreadCount} unread {unreadCount === 1 ? "notification" : "notifications"}
         </div>
       </div>
 
@@ -166,7 +224,13 @@ const Notifications = () => {
                   </div>
 
                   <div className="flex flex-col items-end space-y-1 ml-4">
-                    <button className="p-1 hover:bg-gray-100 rounded">
+                    <button 
+                      className="p-1 hover:bg-gray-100 rounded"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        openNotificationModal(notification)
+                      }}
+                    >
                       <Eye className="h-4 w-4 text-gray-400" />
                     </button>
                     <span className="text-xs text-gray-500">
@@ -274,6 +338,16 @@ const Notifications = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Broadcast Form Modal */}
+      {showBroadcastForm && (
+        <BroadcastForm 
+          onClose={() => {
+            setShowBroadcastForm(false)
+            fetchNotifications() // Refresh notifications after broadcasting
+          }} 
+        />
       )}
     </div>
   )

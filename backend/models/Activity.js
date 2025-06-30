@@ -16,6 +16,7 @@ const activitySchema = new mongoose.Schema({
       "placement_added",
       "placements_uploaded",
       "notification_broadcast",
+      'event_capacity_updated',
       "event_deleted",
     ],
     required: true,
