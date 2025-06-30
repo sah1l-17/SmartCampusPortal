@@ -2,17 +2,19 @@
 
 import { useState, useEffect } from "react"
 import { useAuth } from "../contexts/AuthContext"
-import { TrendingUp, Building, DollarSign, Users } from "lucide-react"
+import { TrendingUp, Building, DollarSign, Users, Upload } from "lucide-react"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts"
 import axios from "axios"
 import toast from "react-hot-toast"
 import LoadingSpinner from "../components/LoadingSpinner"
+import { PlacementUploadModal } from "./Dashboard";
 
 const Placements = () => {
   const { user } = useAuth()
   const [stats, setStats] = useState(null)
   const [placements, setPlacements] = useState([])
   const [loading, setLoading] = useState(true)
+  const [showPlacementUpload, setShowPlacementUpload] = useState(false)
 
   useEffect(() => {
     fetchPlacementData()
@@ -35,6 +37,11 @@ const Placements = () => {
     }
   }
 
+  const handleUploadSuccess = () => {
+    setShowPlacementUpload(false)
+    fetchPlacementData() // Refresh the data after successful upload
+  }
+
   if (loading) {
     return <LoadingSpinner text="Loading placement data..." />
   }
@@ -46,6 +53,15 @@ const Placements = () => {
           <h1 className="text-2xl font-bold text-gray-900">Placements</h1>
           <p className="text-gray-600">Track and analyze placement records</p>
         </div>
+        {user?.role === "admin" && (
+          <button
+            onClick={() => setShowPlacementUpload(true)}
+            className="btn btn-primary flex items-center"
+          >
+            <Upload className="h-4 w-4 mr-2" />
+            Upload Placements
+          </button>
+        )}
       </div>
 
       {/* Statistics Cards */}
@@ -103,6 +119,15 @@ const Placements = () => {
         </div>
       </div>
 
+      {/* Placement Upload Modal */}
+      {showPlacementUpload && (
+        <PlacementUploadModal 
+          onClose={() => setShowPlacementUpload(false)} 
+          onSuccess={handleUploadSuccess}
+        />
+      )}
+
+      {/* Rest of your existing placement page content... */}
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="card p-6">
