@@ -88,9 +88,7 @@ const CoursesList = () => {
                 <option value="Computer Science">Computer Science</option>
                 <option value="Information Technology">Information Technology</option>
                 <option value="Biomedical">Biomedical</option>
-                <option value="Electronics and Communication">Electronics and Communication</option>
-                <option value="Mechanical">Mechanical</option>
-                <option value="Civil">Civil</option>
+
               </select>
             </div>
           )}
