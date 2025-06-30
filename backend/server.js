@@ -4,9 +4,6 @@ import cors from "cors"
 import dotenv from "dotenv"
 import helmet from "helmet"
 import rateLimit from "express-rate-limit"
-import path from "path"
-import { fileURLToPath } from "url"
-import fs from "fs"
 
 // Import routes
 import authRoutes from "./routes/auth.js"
@@ -20,28 +17,9 @@ import placementRoutes from "./routes/placement.js"
 
 dotenv.config()
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
-
 const app = express()
 
-// Create upload directories if they don't exist
-const uploadDirs = [
-  path.join(__dirname, "uploads"),
-  path.join(__dirname, "uploads", "assignments"),
-  path.join(__dirname, "uploads", "events"),
-  path.join(__dirname, "uploads", "notifications"),
-  path.join(__dirname, "uploads", "placements"),
-  path.join(__dirname, "uploads", "materials"),
-  path.join(__dirname, "uploads", "submissions"),
-]
-
-uploadDirs.forEach((dir) => {
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true })
-    console.log(`Created directory: ${dir}`)
-  }
-})
+// Files are stored in MongoDB, no need for upload directories
 
 // CORS configuration
 app.use(
@@ -80,8 +58,7 @@ app.use(limiter)
 app.use(express.json({ limit: "10mb" }))
 app.use(express.urlencoded({ extended: true, limit: "10mb" }))
 
-// Static files
-app.use("/uploads", express.static(path.join(__dirname, "uploads")))
+// Files are stored in MongoDB, no static file serving needed
 
 // Health check endpoint
 app.get("/health", (req, res) => {

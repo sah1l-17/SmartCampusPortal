@@ -40,15 +40,9 @@ const notificationSchema = new mongoose.Schema({
   ],
   readBy: [
     {
-      user: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-      },
-      readAt: {
-        type: Date,
-        default: Date.now,
-      },
-    },
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    }
   ],
   isActive: {
     type: Boolean,

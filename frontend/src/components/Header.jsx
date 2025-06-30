@@ -28,6 +28,29 @@ const Header = ({ onMenuClick }) => {
     }
   }
 
+  // Listen for storage events to refresh unread count when notifications are marked as read
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === 'notifications_updated') {
+        fetchUnreadCount()
+      }
+    }
+
+    window.addEventListener('storage', handleStorageChange)
+    
+    // Also listen for custom events from the same tab
+    const handleCustomEvent = () => {
+      fetchUnreadCount()
+    }
+    
+    window.addEventListener('notifications_updated', handleCustomEvent)
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+      window.removeEventListener('notifications_updated', handleCustomEvent)
+    }
+  }, [])
+
   const handleNotificationClick = () => {
     navigate("/notifications")
     // Refresh unread count after navigating to notifications

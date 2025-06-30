@@ -1,6 +1,7 @@
 import express from "express"
 import Event from "../models/Event.js"
-import { authenticate } from "../middleware/auth.js"
+import { authenticate, authorize } from "../middleware/auth.js"
+import { logActivity } from "../utils/activity.js"
 import xlsx from "xlsx"
 
 const router = express.Router()
@@ -12,8 +13,8 @@ router.get("/", async (req, res) => {
       status: "approved",
       isActive: true,
     })
-      .populate("organizer", "name email")
-      .populate("registeredStudents.student", "name email userId")
+      .populate("organizer", "name email department")
+      .populate("registeredStudents.student", "name email userId _id")
       .sort({ date: 1 })
 
     res.json(events)
@@ -58,6 +59,94 @@ router.get("/:eventId/image", async (req, res) => {
     res.send(event.image.data)
   } catch (error) {
     console.error("Get event image error:", error)
+    res.status(500).json({ message: "Server error" })
+  }
+})
+
+// Register for event (students only)
+router.post("/:eventId/register", authenticate, authorize("student"), async (req, res) => {
+  try {
+    const { eventId } = req.params
+
+    const event = await Event.findById(eventId)
+
+    if (!event) {
+      return res.status(404).json({ message: "Event not found" })
+    }
+
+    if (event.status !== "approved") {
+      return res.status(400).json({ message: "Event is not approved for registration" })
+    }
+
+    // Check if already registered
+    const alreadyRegistered = event.registeredStudents.some((reg) => reg.student.toString() === req.user._id.toString())
+
+    if (alreadyRegistered) {
+      return res.status(400).json({ message: "Already registered for this event" })
+    }
+
+    // Check capacity
+    if (event.maxParticipants > 0 && event.registeredStudents.length >= event.maxParticipants) {
+      return res.status(400).json({ message: "Event is full" })
+    }
+
+    event.registeredStudents.push({
+      student: req.user._id,
+      registeredAt: new Date(),
+    })
+
+    await event.save()
+
+    // Log activity
+    await logActivity(
+      "event_registered",
+      `Student ${req.user.name} registered for event "${event.title}"`,
+      req.user._id,
+      "Event",
+      event._id,
+    )
+
+    res.json({ message: "Successfully registered for the event" })
+  } catch (error) {
+    console.error("Register for event error:", error)
+    res.status(500).json({ message: "Server error" })
+  }
+})
+
+// Unregister from event (students only)
+router.delete("/:eventId/unregister", authenticate, authorize("student"), async (req, res) => {
+  try {
+    const { eventId } = req.params
+
+    const event = await Event.findById(eventId)
+
+    if (!event) {
+      return res.status(404).json({ message: "Event not found" })
+    }
+
+    // Check if registered
+    const registrationIndex = event.registeredStudents.findIndex((reg) => reg.student.toString() === req.user._id.toString())
+
+    if (registrationIndex === -1) {
+      return res.status(400).json({ message: "Not registered for this event" })
+    }
+
+    // Remove registration
+    event.registeredStudents.splice(registrationIndex, 1)
+    await event.save()
+
+    // Log activity
+    await logActivity(
+      "event_unregistered",
+      `Student ${req.user.name} unregistered from event "${event.title}"`,
+      req.user._id,
+      "Event",
+      event._id,
+    )
+
+    res.json({ message: "Successfully unregistered from the event" })
+  } catch (error) {
+    console.error("Unregister from event error:", error)
     res.status(500).json({ message: "Server error" })
   }
 })

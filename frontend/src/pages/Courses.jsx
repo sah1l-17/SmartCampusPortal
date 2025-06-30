@@ -831,7 +831,7 @@ const AssignmentCard = ({ assignment, courseId, onUpdate, onDownloadAttachment }
   const [showSubmissionForm, setShowSubmissionForm] = useState(false)
 
   const userSubmission = assignment.submissions?.find(
-    (sub) => sub.student === user?.id || sub.student?._id === user?.id,
+    (sub) => sub.student === user?._id || sub.student?._id === user?._id,
   )
 
   const isOverdue = new Date(assignment.dueDate) < new Date()

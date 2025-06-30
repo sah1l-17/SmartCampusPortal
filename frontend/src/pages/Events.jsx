@@ -18,6 +18,7 @@ const Events = () => {
   const [showCapacityModal, setShowCapacityModal] = useState(false)
   const [pendingEvents, setPendingEvents] = useState([])
   const [selectedEvent, setSelectedEvent] = useState(null)
+  const [registeringEvents, setRegisteringEvents] = useState(new Set())
 
   useEffect(() => {
     fetchEvents()
@@ -71,14 +72,70 @@ const Events = () => {
   }
 
   const registerForEvent = async (eventId) => {
+    // Add to registering set
+    setRegisteringEvents(prev => new Set([...prev, eventId]))
+    
     try {
+      // Optimistic update - immediately update UI
+      setEvents(prevEvents => 
+        prevEvents.map(event => 
+          event._id === eventId 
+            ? {
+                ...event,
+                registeredStudents: [
+                  ...(event.registeredStudents || []),
+                  { student: { _id: user._id, name: user.name, email: user.email } }
+                ]
+              }
+            : event
+        )
+      )
+      
       await axios.post(`/events/${eventId}/register`)
       toast.success("Successfully registered for event")
-      fetchEvents()
+      
+      // Only refresh events to get updated counts, but preserve registration status
+      const response = await axios.get("/events")
+      setEvents(prevEvents => 
+        response.data.map(serverEvent => {
+          const currentEvent = prevEvents.find(e => e._id === serverEvent._id)
+          // If user was optimistically registered, ensure it stays registered
+          if (currentEvent && serverEvent._id === eventId) {
+            const userAlreadyRegistered = serverEvent.registeredStudents?.some(reg => 
+              (reg.student?._id === user._id) || (reg.student?.toString() === user._id)
+            )
+            if (!userAlreadyRegistered) {
+              // Add user registration if not found in server response
+              return {
+                ...serverEvent,
+                registeredStudents: [
+                  ...(serverEvent.registeredStudents || []),
+                  { student: { _id: user._id, name: user.name, email: user.email } }
+                ]
+              }
+            }
+          }
+          return serverEvent
+        })
+      )
     } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to register for event")
+      console.error("Registration error:", error)
+      const errorMessage = error.response?.data?.message || "Failed to register for event"
+      toast.error(errorMessage)
+      
+      // Revert optimistic update on error
+      await fetchEvents()
+    } finally {
+      // Remove from registering set
+      setRegisteringEvents(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(eventId)
+        return newSet
+      })
     }
   }
+
+
 
   const filteredEvents = events.filter((event) => {
     const matchesSearch = event.title.toLowerCase().includes(searchTerm.toLowerCase())
@@ -148,7 +205,13 @@ const Events = () => {
       {/* Events Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredEvents.map((event) => (
-          <EventCard key={event._id} event={event} onRegister={registerForEvent} user={user} />
+          <EventCard 
+            key={event._id} 
+            event={event} 
+            onRegister={registerForEvent} 
+            user={user} 
+            isRegistering={registeringEvents.has(event._id)}
+          />
         ))}
       </div>
 
@@ -187,25 +250,62 @@ const Events = () => {
 }
 
 // Event Card Component
-const EventCard = ({ event, onRegister, user }) => {
-  const isRegistered = event.registeredStudents?.some((student) => student._id === user?.id)
+const EventCard = ({ event, onRegister, user, isRegistering }) => {
+  // More robust registration check with debugging
+  const isRegistered = (() => {
+    if (!event.registeredStudents || !user?._id) return false
+    
+    const found = event.registeredStudents.some((reg) => {
+      // Handle different possible data structures
+      if (reg.student && typeof reg.student === 'object') {
+        return reg.student._id === user._id
+      }
+      // Handle case where student is just an ID string
+      if (reg.student) {
+        return reg.student.toString() === user._id.toString()
+      }
+      // Handle case where the registration directly contains user ID
+      if (reg._id) {
+        return reg._id === user._id
+      }
+      // Handle direct user ID in the array
+      if (typeof reg === 'string') {
+        return reg === user._id
+      }
+      return false
+    })
+    
+    console.log(`Event: ${event.title}, User: ${user._id}, Registered: ${found}`)
+    console.log('Registered students:', event.registeredStudents)
+    
+    return found
+  })()
+  
   const isFull = event.maxParticipants > 0 && event.registeredStudents?.length >= event.maxParticipants
+  const isPastEvent = new Date(event.date) < new Date()
 
   return (
-    <div className="card p-6 hover:shadow-lg transition-shadow">
+    <div className={`card p-6 hover:shadow-lg transition-shadow ${isPastEvent ? 'opacity-75' : ''}`}>
       <div className="flex items-start justify-between mb-4">
         <h3 className="text-lg font-semibold text-gray-900">{event.title}</h3>
-        <span
-          className={`px-2 py-1 text-xs font-semibold rounded-full ${
-            event.status === "approved"
-              ? "bg-green-100 text-green-800"
-              : event.status === "pending"
-                ? "bg-yellow-100 text-yellow-800"
-                : "bg-red-100 text-red-800"
-          }`}
-        >
-          {event.status}
-        </span>
+        <div className="flex items-center space-x-2">
+          {isPastEvent && (
+            <span className="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-600">
+              Past Event
+            </span>
+          )}
+          <span
+            className={`px-2 py-1 text-xs font-semibold rounded-full ${
+              event.status === "approved"
+                ? "bg-green-100 text-green-800"
+                : event.status === "pending"
+                  ? "bg-yellow-100 text-yellow-800"
+                  : "bg-red-100 text-red-800"
+            }`}
+          >
+            {event.status}
+          </span>
+        </div>
       </div>
 
       <p className="text-gray-600 text-sm mb-4 line-clamp-3">{event.description}</p>
@@ -226,22 +326,35 @@ const EventCard = ({ event, onRegister, user }) => {
         </div>
       </div>
 
-      {user?.role === "student" && event.status === "approved" && (
+      {user?.role === "student" && event.status === "approved" && !isPastEvent && (
         <div className="mt-4">
           {isRegistered ? (
-            <button disabled className="btn btn-outline w-full">
+            <button disabled className="btn w-full bg-green-600 text-white cursor-not-allowed">
               <Check className="h-4 w-4 mr-2" />
               Registered
             </button>
           ) : isFull ? (
-            <button disabled className="btn btn-outline w-full">
+            <button disabled className="btn btn-outline w-full opacity-50 cursor-not-allowed">
               Event Full
             </button>
           ) : (
-            <button onClick={() => onRegister(event._id)} className="btn btn-primary w-full">
-              Register
+            <button 
+              onClick={() => onRegister(event._id)} 
+              disabled={isRegistering}
+              className="btn btn-primary w-full"
+            >
+              {isRegistering ? "Registering..." : "Register"}
             </button>
           )}
+        </div>
+      )}
+      
+      {user?.role === "student" && isPastEvent && isRegistered && (
+        <div className="mt-4">
+          <button disabled className="btn w-full bg-green-600 text-white cursor-not-allowed">
+            <Check className="h-4 w-4 mr-2" />
+            Attended
+          </button>
         </div>
       )}
 

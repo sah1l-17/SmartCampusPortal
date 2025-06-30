@@ -7,6 +7,7 @@ import axios from "axios"
 import toast from "react-hot-toast"
 import LoadingSpinner from "../components/LoadingSpinner"
 import { BroadcastForm } from "./Dashboard"
+import { triggerNotificationUpdate } from "../utils/notifications"
 
 const Notifications = () => {
   const { user } = useAuth()
@@ -51,6 +52,8 @@ const Notifications = () => {
       setNotifications(
         notifications.map((notif) => (notif._id === notificationId ? { ...notif, isRead: true } : notif)),
       )
+      // Trigger unread count update in header
+      triggerNotificationUpdate()
     } catch (error) {
       console.error("Mark as read error:", error)
     }
@@ -61,6 +64,8 @@ const Notifications = () => {
       setIsMarkingAll(true)
       await axios.patch("/notifications/mark-all-read", {}, getAuthHeaders())
       setNotifications(notifications.map(notif => ({ ...notif, isRead: true })))
+      // Trigger unread count update in header
+      triggerNotificationUpdate()
       toast.success("All notifications marked as read")
     } catch (error) {
       console.error("Mark all as read error:", error)
@@ -74,7 +79,24 @@ const Notifications = () => {
     setSelectedNotification(notification)
     setShowModal(true)
     if (!notification.isRead) {
-      await markAsRead(notification._id)
+      // Optimistically update the UI
+      setNotifications(notifications.map((notif) => 
+        notif._id === notification._id ? { ...notif, isRead: true } : notif
+      ))
+      // Trigger unread count update in header immediately
+      triggerNotificationUpdate()
+      
+      // Then make the API call
+      try {
+        await axios.patch(`/notifications/${notification._id}/read`, {}, getAuthHeaders())
+      } catch (error) {
+        console.error("Mark as read error:", error)
+        // Revert the optimistic update if the API call fails
+        setNotifications(notifications.map((notif) => 
+          notif._id === notification._id ? { ...notif, isRead: false } : notif
+        ))
+        triggerNotificationUpdate()
+      }
     }
   }
 
