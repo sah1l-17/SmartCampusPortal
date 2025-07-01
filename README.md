@@ -57,20 +57,20 @@ Before running this project, make sure you have the following installed:
 ### 1. Clone the Repository
 
 ```bash
-git clone <repository-url>
-cd SmartCampusPortalmain2
+git clone https://github.com/Mangesh2904/SmartCampusPortal
+cd SmartCampusPortal
 ```
 
 ### 2. Backend Setup
 
-\`\`\`bash
+```bash
 cd backend
 npm install
-\`\`\`
+```
 
-Create a \`.env\` file in the backend directory:
+Create a `.env` file in the backend directory:
 
-\`\`\`env
+
 # Database
 MONGODB_URI=mongodb://localhost:27017/college-portal
 
@@ -83,47 +83,47 @@ NODE_ENV=development
 
 # Client URL (for CORS)
 CLIENT_URL=http://localhost:5173
-\`\`\`
 
-Start the backend server:
 
-\`\`\`bash
+# Start the backend server:
+
+```bash
 npm start
-\`\`\`
+```
 
-The backend will be available at \`http://localhost:5000\`
+The backend will be available at `http://localhost:5000`
 
 ### 3. Frontend Setup
 
 Open a new terminal and navigate to the frontend directory:
 
-\`\`\`bash
+```bash
 cd frontend
 npm install
-\`\`\`
+```
 
 Start the frontend development server:
 
-\`\`\`bash
+```bash
 npm run dev
-\`\`\`
+```
 
-The frontend will be available at \`http://localhost:5173\`
+The frontend will be available at `http://localhost:5173`
 
 ### 4. Create Admin User
 
 To create an initial admin user, run:
 
-\`\`\`bash
+```bash
 cd backend
 node scripts/createAdmin.js
-\`\`\`
+```
 
 ## 🐳 Docker Deployment
 
 ### Using Docker Compose (Recommended)
 
-\`\`\`bash
+```bash
 # Build and start all services
 docker-compose up --build
 
@@ -132,21 +132,21 @@ docker-compose up -d --build
 
 # Stop all services
 docker-compose down
-\`\`\`
+```
 
 ### Manual Docker Build
 
-\`\`\`bash
+```bash
 # Build the application
 docker build -t smart-campus-portal .
 
 # Run the container
 docker run -p 3000:3000 smart-campus-portal
-\`\`\`
+```
 
 ## 📁 Project Structure
 
-\`\`\`
+```
 SmartCampusPortalmain2/
 ├── backend/
 │   ├── middleware/          # Authentication and other middleware
@@ -167,7 +167,7 @@ SmartCampusPortalmain2/
 ├── Dockerfile             # Container configuration
 ├── Jenkinsfile           # CI/CD pipeline
 └── README.md             # Project documentation
-\`\`\`
+```
 
 ## 🔧 Environment Variables
 
@@ -175,11 +175,11 @@ SmartCampusPortalmain2/
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| \`MONGODB_URI\` | MongoDB connection string | \`mongodb://localhost:27017/college-portal\` |
-| \`JWT_SECRET\` | Secret key for JWT tokens | Required |
-| \`PORT\` | Backend server port | \`5000\` |
-| \`NODE_ENV\` | Environment mode | \`development\` |
-| \`CLIENT_URL\` | Frontend URL for CORS | \`http://localhost:5173\` |
+| `MONGODB_URI` | MongoDB connection string | `mongodb://localhost:27017/college-portal` |
+| `JWT_SECRET` | Secret key for JWT tokens | Required |
+| `PORT` | Backend server port | `5000` |
+| `NODE_ENV` | Environment mode | `development` |
+| `CLIENT_URL` | Frontend URL for CORS | `http://localhost:5173` |
 
 ## 🚀 Deployment
 
@@ -201,7 +201,7 @@ The project includes a Jenkinsfile for automated deployment. Configure your Jenk
 
 ## 🧪 Testing
 
-\`\`\`bash
+```bash
 # Run backend tests
 cd backend
 npm test
@@ -209,38 +209,38 @@ npm test
 # Run frontend tests
 cd frontend
 npm test
-\`\`\`
+```
 
 ## 📝 API Documentation
 
 ### Authentication Endpoints
-- \`POST /api/auth/login\` - User login
-- \`POST /api/auth/register\` - User registration
-- \`POST /api/auth/logout\` - User logout
+- `POST /api/auth/login` - User login
+- `POST /api/auth/register` - User registration
+- `POST /api/auth/logout` - User logout
 
 ### User Management
-- \`GET /api/admin/users\` - Get all users (Admin only)
-- \`PUT /api/admin/users/:id\` - Update user (Admin only)
-- \`DELETE /api/admin/users/:id\` - Delete user (Admin only)
+- `GET /api/admin/users` - Get all users (Admin only)
+- `PUT /api/admin/users/:id` - Update user (Admin only)
+- `DELETE /api/admin/users/:id` - Delete user (Admin only)
 
 ### Courses
-- \`GET /api/courses\` - Get all courses
-- \`POST /api/courses\` - Create course (Faculty/Admin)
-- \`PUT /api/courses/:id\` - Update course
-- \`DELETE /api/courses/:id\` - Delete course
+- `GET /api/courses` - Get all courses
+- `POST /api/courses` - Create course (Faculty/Admin)
+- `PUT /api/courses/:id` - Update course
+- `DELETE /api/courses/:id` - Delete course
 
 ### Events
-- \`GET /api/events\` - Get all events
-- \`POST /api/events\` - Create event
-- \`PUT /api/events/:id\` - Update event
-- \`DELETE /api/events/:id\` - Delete event
+- `GET /api/events` - Get all events
+- `POST /api/events` - Create event
+- `PUT /api/events/:id` - Update event
+- `DELETE /api/events/:id` - Delete event
 
 ## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch (\`git checkout -b feature/amazing-feature\`)
-3. Commit your changes (\`git commit -m 'Add some amazing feature'\`)
-4. Push to the branch (\`git push origin feature/amazing-feature\`)
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
 ## 📄 License
