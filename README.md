@@ -56,10 +56,10 @@ Before running this project, make sure you have the following installed:
 
 ### 1. Clone the Repository
 
-\`\`\`bash
+```bash
 git clone <repository-url>
 cd SmartCampusPortalmain2
-\`\`\`
+```
 
 ### 2. Backend Setup
 
