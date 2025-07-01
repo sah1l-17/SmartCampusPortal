@@ -30,7 +30,6 @@ function App() {
       <Routes>
         <Route path="/login" element={!user ? <Login /> : <Navigate to="/dashboard" />} />
         <Route path="/register" element={!user ? <Register /> : <Navigate to="/dashboard" />} />
-        <Route path="/about" element={<About />} />
 
         {user ? (
           <Route path="/" element={<Layout />}>
@@ -55,6 +54,7 @@ function App() {
             />
             <Route path="attendance" element={<StudentAttendance />} />
             <Route path="profile" element={<Profile />} />
+            <Route path="about" element={<About />} />
           </Route>
         ) : (
           <Route path="*" element={<Navigate to="/login" />} />
