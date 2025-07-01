@@ -218,51 +218,75 @@ docker-compose down
 ```
 SmartCampusPortal/
 ├── 📁 backend/
-│   ├── 📁 config/              # Database and app configuration
-│   ├── 📁 controllers/         # Request handlers
 │   ├── 📁 middleware/          # Authentication & validation
+│   │   └── auth.js             # JWT authentication middleware
 │   ├── 📁 models/              # MongoDB schemas
-│   │   ├── User.js             # User model with roles
-│   │   ├── Course.js           # Course management
-│   │   ├── Event.js            # Event system
-│   │   ├── Notification.js     # Notification system
-│   │   └── Placement.js        # Placement management
+│   │   ├── Activity.js         # Activity tracking model
+│   │   ├── Course.js           # Course management model
+│   │   ├── Event.js            # Event system model
+│   │   ├── Notification.js     # Notification system model
+│   │   ├── Placement.js        # Placement management model
+│   │   └── User.js             # User model with roles
 │   ├── 📁 routes/              # API endpoints
-│   │   ├── auth.js             # Authentication routes
 │   │   ├── admin.js            # Admin-only routes
-│   │   ├── student.js          # Student routes
+│   │   ├── auth.js             # Authentication routes
+│   │   ├── course.js           # Course management routes
+│   │   ├── event.js            # Event management routes
 │   │   ├── faculty.js          # Faculty routes
-│   │   ├── courses.js          # Course management
-│   │   ├── events.js           # Event management
-│   │   └── notifications.js    # Notification system
+│   │   ├── notification.js     # Notification system routes
+│   │   ├── placement.js        # Placement routes
+│   │   └── student.js          # Student routes
 │   ├── 📁 scripts/             # Database seeding & utilities
+│   │   └── createAdmin.js      # Admin user creation script
 │   ├── 📁 utils/               # Helper functions
-│   ├── server.js               # Express app entry point
-│   └── package.json
+│   │   └── activity.js         # Activity logging utilities
+│   └── server.js               # Express app entry point
 ├── 📁 frontend/
 │   ├── 📁 public/              # Static assets
+│   │   └── vite.svg            # Vite logo
 │   ├── 📁 src/
 │   │   ├── 📁 components/      # Reusable UI components
-│   │   │   ├── Header.jsx      # Navigation header
-│   │   │   ├── Sidebar.jsx     # Navigation sidebar
-│   │   │   ├── LoadingSpinner.jsx
-│   │   │   └── EventCard.jsx   # Event display component
+│   │   │   ├── Header.jsx      # Navigation header with notifications
+│   │   │   ├── Layout.jsx      # Main layout wrapper
+│   │   │   ├── LoadingSpinner.jsx # Loading component
+│   │   │   └── Sidebar.jsx     # Navigation sidebar
 │   │   ├── 📁 contexts/        # React context providers
-│   │   │   └── AuthContext.jsx # Authentication state
+│   │   │   └── AuthContext.jsx # Authentication state management
 │   │   ├── 📁 pages/           # Page components
-│   │   │   ├── Dashboard.jsx   # User dashboard
-│   │   │   ├── Events.jsx      # Event management
+│   │   │   ├── About.jsx       # About page
+│   │   │   ├── Attendance.jsx  # Faculty attendance management
 │   │   │   ├── Courses.jsx     # Course management
-│   │   │   ├── Notifications.jsx
-│   │   │   └── Placements.jsx
+│   │   │   ├── CreateEventForm.jsx # Event creation form
+│   │   │   ├── Dashboard.jsx   # User dashboard
+│   │   │   ├── Events.jsx      # Event management & registration
+│   │   │   ├── FacultyInsights.jsx # Faculty analytics
+│   │   │   ├── Login.jsx       # User login
+│   │   │   ├── Notifications.jsx # Notification center
+│   │   │   ├── Placements.jsx  # Placement portal
+│   │   │   ├── Profile.jsx     # User profile
+│   │   │   ├── Register.jsx    # User registration
+│   │   │   ├── StudentAttendance.jsx # Student attendance view
+│   │   │   ├── StudentAttendance_Updated.jsx # Enhanced attendance view
+│   │   │   ├── StudentInsights.jsx # Student analytics
+│   │   │   └── SubmissionForm.jsx # Assignment submissions
 │   │   ├── 📁 utils/           # Frontend utilities
+│   │   │   └── notifications.js # Notification event handlers
 │   │   ├── App.jsx             # Main app component
+│   │   ├── index.css           # Global styles with Tailwind
 │   │   └── main.jsx            # React entry point
-│   └── package.json
-├── 📄 docker-compose.yml       # Multi-container setup
+│   ├── eslint.config.js        # ESLint configuration
+│   ├── index.html              # HTML template
+│   ├── package.json            # Frontend dependencies
+│   ├── postcss.config.js       # PostCSS configuration
+│   ├── README.md               # Frontend documentation
+│   ├── tailwind.config.js      # Tailwind CSS configuration
+│   └── vite.config.js          # Vite build configuration
+├── 📄 .env                     # Environment variables (not in git)
+├── 📄 .gitignore              # Git ignore rules
+├── 📄 docker-compose.yaml     # Multi-container setup
 ├── 📄 Dockerfile              # Container configuration
 ├── 📄 Jenkinsfile             # CI/CD pipeline
-├── 📄 .gitignore              # Git ignore rules
+├── 📄 package.json            # Root project configuration
 └── 📄 README.md               # Project documentation
 ```
 
@@ -613,7 +637,6 @@ copies or substantial portions of the Software.
 ---
 
 <div align="center">
-
 
 [⭐ Star this repo](../../stargazers) | [🐛 Report Bug](../../issues) | [💡 Request Feature](../../issues) | [🤝 Contribute](../../pulls)
 
