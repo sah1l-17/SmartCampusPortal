@@ -1,14 +1,14 @@
 const LoadingSpinner = ({ size = "medium", text = "Loading..." }) => {
   const sizeClasses = {
-    small: "h-4 w-4",
-    medium: "h-8 w-8",
-    large: "h-12 w-12",
+    small: "h-6 w-6",
+    medium: "h-10 w-10",
+    large: "h-16 w-16",
   }
 
   return (
-    <div className="flex flex-col items-center justify-center p-8">
-      <div className={`loading-spinner ${sizeClasses[size]}`}></div>
-      {text && <p className="mt-2 text-sm text-gray-600">{text}</p>}
+    <div className="flex flex-col items-center justify-center p-12 animate-fade-in">
+      <div className={`loading-spinner ${sizeClasses[size]} mb-4`}></div>
+      {text && <p className="text-sm text-gray-600 font-medium animate-pulse">{text}</p>}
     </div>
   )
 }

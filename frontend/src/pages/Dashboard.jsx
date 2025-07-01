@@ -14,6 +14,11 @@ import {
   Upload,
   Search,
   Edit,
+  Plus,
+  Activity,
+  Award,
+  Target,
+  User,
 } from "lucide-react"
 import axios from "axios"
 import LoadingSpinner from "../components/LoadingSpinner"
@@ -117,8 +122,8 @@ const Dashboard = () => {
     try {
       await axios.patch(`/admin/events/${eventId}/status`, { status })
       toast.success(`Event ${status} successfully`)
-      fetchPendingEvents() // Refresh the list
-      fetchDashboardData() // Refresh stats
+      fetchPendingEvents()
+      fetchDashboardData()
     } catch (error) {
       toast.error(`Failed to ${status} event`)
     }
@@ -127,16 +132,13 @@ const Dashboard = () => {
   const handleUpdateEventCapacity = async (eventId, newCapacity) => {
     try {
       const response = await axios.patch(`/admin/events/${eventId}/capacity`, {
-        maxParticipants: Number(newCapacity), // Ensure it's sent as number
+        maxParticipants: Number(newCapacity),
       })
       toast.success(response.data.message || "Event capacity updated successfully")
       fetchAllEvents()
     } catch (error) {
-      // Show the backend error message if available, otherwise generic message
       const errorMessage = error.response?.data?.message || "Failed to update event capacity"
       toast.error(errorMessage)
-
-      // For debugging - log the full error
       console.error("Capacity update error:", {
         status: error.response?.status,
         data: error.response?.data,
@@ -144,101 +146,105 @@ const Dashboard = () => {
       })
     }
   }
+
   if (loading) {
     return <LoadingSpinner text="Loading dashboard..." />
   }
 
   const renderAdminDashboard = () => (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="card p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <Users className="h-6 w-6 text-blue-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Students</p>
-              <p className="text-2xl font-bold text-gray-900">{stats?.totalStudents || 0}</p>
-            </div>
+    <div className="space-y-8 animate-fade-in">
+      {/* Welcome Section */}
+      <div className="bg-gradient-to-br from-blue-50 via-white to-purple-50 rounded-3xl p-8 border border-blue-100">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome back, {user?.name}! 👋</h1>
+            <p className="text-gray-600 text-lg">Here's what's happening in your portal today.</p>
           </div>
-        </div>
-
-        <div className="card p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <Users className="h-6 w-6 text-green-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Faculty</p>
-              <p className="text-2xl font-bold text-gray-900">{stats?.totalFaculty || 0}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="card p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-yellow-100 rounded-lg">
-              <Clock className="h-6 w-6 text-yellow-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Pending Events</p>
-              <p className="text-2xl font-bold text-gray-900">{stats?.pendingEvents || 0}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="card p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <Calendar className="h-6 w-6 text-purple-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Events</p>
-              <p className="text-2xl font-bold text-gray-900">{stats?.totalEvents || 0}</p>
+          <div className="hidden md:block">
+            <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-purple-600 rounded-3xl flex items-center justify-center">
+              <Target className="h-12 w-12 text-white" />
             </div>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="card p-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Recent Activity</h3>
-          <div className="space-y-3">
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatCard icon={Users} title="Total Students" value={stats?.totalStudents || 0} color="blue" trend="+12%" />
+        <StatCard icon={Users} title="Total Faculty" value={stats?.totalFaculty || 0} color="green" trend="+5%" />
+        <StatCard icon={Clock} title="Pending Events" value={stats?.pendingEvents || 0} color="yellow" trend="3 new" />
+        <StatCard icon={Calendar} title="Total Events" value={stats?.totalEvents || 0} color="purple" trend="+8%" />
+      </div>
+
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Recent Activity */}
+        <div className="card p-6 hover-lift">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-xl font-bold text-gray-900 flex items-center">
+              <Activity className="h-6 w-6 mr-3 text-blue-500" />
+              Recent Activity
+            </h3>
+            <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
+          </div>
+          <div className="space-y-4">
             {recentActivities.length > 0 ? (
               recentActivities.slice(0, 5).map((activity, index) => (
-                <div key={index} className="flex items-center text-sm">
-                  <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
-                  <span className="flex-1">{activity.description}</span>
-                  <span className="text-gray-500">{new Date(activity.createdAt).toLocaleDateString()}</span>
+                <div
+                  key={index}
+                  className="flex items-start space-x-3 p-3 rounded-xl hover:bg-gray-50 transition-colors duration-200"
+                >
+                  <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm text-gray-700">{activity.description}</p>
+                    <p className="text-xs text-gray-500 mt-1">{new Date(activity.createdAt).toLocaleDateString()}</p>
+                  </div>
                 </div>
               ))
             ) : (
-              <p className="text-gray-500 text-sm">No recent activities</p>
+              <div className="text-center py-8">
+                <Activity className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500 text-sm">No recent activities</p>
+              </div>
             )}
           </div>
         </div>
 
-        <div className="card p-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Quick Actions</h3>
-          <div className="space-y-3">
-            <button onClick={fetchPendingEvents} className="w-full btn btn-primary text-left">
-              View Pending Events
-            </button>
-            <button onClick={fetchAllEvents} className="w-full btn btn-outline text-left">
-              Manage Event Capacity
-            </button>
-            <button onClick={() => setShowBroadcastForm(true)} className="w-full btn btn-outline text-left">
-              Broadcast Notification
-            </button>
-            <button onClick={() => setShowUserManagement(true)} className="w-full btn btn-outline text-left">
-              Manage Users
-            </button>
-            <button onClick={() => setShowCourseManagement(true)} className="w-full btn btn-outline text-left">
-              View Courses
-            </button>
-            <button onClick={() => setShowPlacementUpload(true)} className="w-full btn btn-outline text-left">
-              Upload Placements
-            </button>
+        {/* Quick Actions */}
+        <div className="card p-6 hover-lift">
+          <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center">
+            <Award className="h-6 w-6 mr-3 text-purple-500" />
+            Quick Actions
+          </h3>
+          <div className="grid grid-cols-1 gap-3">
+            <QuickActionButton
+              onClick={fetchPendingEvents}
+              icon={AlertCircle}
+              title="View Pending Events"
+              description="Review and approve events"
+              color="orange"
+            />
+            <QuickActionButton
+              onClick={fetchAllEvents}
+              icon={Edit}
+              title="Manage Event Capacity"
+              description="Update event limits"
+              color="blue"
+            />
+            <QuickActionButton
+              onClick={() => setShowBroadcastForm(true)}
+              icon={Plus}
+              title="Broadcast Notification"
+              description="Send announcements"
+              color="green"
+            />
+            <QuickActionButton
+              onClick={() => setShowUserManagement(true)}
+              icon={Users}
+              title="Manage Users"
+              description="User administration"
+              color="purple"
+            />
           </div>
         </div>
       </div>
@@ -273,130 +279,160 @@ const Dashboard = () => {
   )
 
   const renderFacultyDashboard = () => (
-    <div className="space-y-6">
+    <div className="space-y-8 animate-fade-in">
+      {/* Welcome Section */}
+      <div className="bg-gradient-to-br from-green-50 via-white to-blue-50 rounded-3xl p-8 border border-green-100">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Good day, Prof. {user?.name}! 📚</h1>
+            <p className="text-gray-600 text-lg">Ready to inspire minds today?</p>
+          </div>
+          <div className="hidden md:block">
+            <div className="w-24 h-24 bg-gradient-to-br from-green-500 to-blue-600 rounded-3xl flex items-center justify-center">
+              <BookOpen className="h-12 w-12 text-white" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="card p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <BookOpen className="h-6 w-6 text-blue-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">My Courses</p>
-              <p className="text-2xl font-bold text-gray-900">{stats?.totalCourses || 0}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="card p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <Calendar className="h-6 w-6 text-green-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">My Events</p>
-              <p className="text-2xl font-bold text-gray-900">{stats?.totalEvents || 0}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="card p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-yellow-100 rounded-lg">
-              <Clock className="h-6 w-6 text-yellow-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Pending Events</p>
-              <p className="text-2xl font-bold text-gray-900">{stats?.pendingEvents || 0}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="card p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <CheckCircle className="h-6 w-6 text-purple-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Approved Events</p>
-              <p className="text-2xl font-bold text-gray-900">{stats?.approvedEvents || 0}</p>
-            </div>
-          </div>
-        </div>
+        <StatCard icon={BookOpen} title="My Courses" value={stats?.totalCourses || 0} color="blue" trend="Active" />
+        <StatCard icon={Calendar} title="My Events" value={stats?.totalEvents || 0} color="green" trend="Organized" />
+        <StatCard
+          icon={Clock}
+          title="Pending Events"
+          value={stats?.pendingEvents || 0}
+          color="yellow"
+          trend="Awaiting approval"
+        />
+        <StatCard
+          icon={CheckCircle}
+          title="Approved Events"
+          value={stats?.approvedEvents || 0}
+          color="purple"
+          trend="Ready to go"
+        />
       </div>
     </div>
   )
 
   const renderStudentDashboard = () => (
-    <div className="space-y-6">
+    <div className="space-y-8 animate-fade-in">
+      {/* Welcome Section */}
+      <div className="bg-gradient-to-br from-purple-50 via-white to-pink-50 rounded-3xl p-8 border border-purple-100">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Hello, {user?.name}! 🎓</h1>
+            <p className="text-gray-600 text-lg">Let's make today productive!</p>
+          </div>
+          <div className="hidden md:block">
+            <div className="w-24 h-24 bg-gradient-to-br from-purple-500 to-pink-600 rounded-3xl flex items-center justify-center">
+              <Award className="h-12 w-12 text-white" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="card p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <BookOpen className="h-6 w-6 text-blue-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Enrolled Courses</p>
-              <p className="text-2xl font-bold text-gray-900">{stats?.enrolledCourses || 0}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="card p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <Calendar className="h-6 w-6 text-green-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Upcoming Events</p>
-              <p className="text-2xl font-bold text-gray-900">{stats?.upcomingEvents || 0}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="card p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-yellow-100 rounded-lg">
-              <AlertCircle className="h-6 w-6 text-yellow-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Pending Assignments</p>
-              <p className="text-2xl font-bold text-gray-900">{stats?.pendingAssignments || 0}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="card p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <TrendingUp className="h-6 w-6 text-purple-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Assignments</p>
-              <p className="text-2xl font-bold text-gray-900">{stats?.totalAssignments || 0}</p>
-            </div>
-          </div>
-        </div>
+        <StatCard
+          icon={BookOpen}
+          title="Enrolled Courses"
+          value={stats?.enrolledCourses || 0}
+          color="blue"
+          trend="This semester"
+        />
+        <StatCard
+          icon={Calendar}
+          title="Upcoming Events"
+          value={stats?.upcomingEvents || 0}
+          color="green"
+          trend="Don't miss out"
+        />
+        <StatCard
+          icon={AlertCircle}
+          title="Pending Assignments"
+          value={stats?.pendingAssignments || 0}
+          color="yellow"
+          trend="Due soon"
+        />
+        <StatCard
+          icon={TrendingUp}
+          title="Total Assignments"
+          value={stats?.totalAssignments || 0}
+          color="purple"
+          trend="Completed"
+        />
       </div>
     </div>
   )
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Welcome back, {user?.name}!</h1>
-          <p className="text-gray-600">Here's what's happening in your portal today.</p>
-        </div>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
+      <div className="max-w-7xl mx-auto p-6">
+        {user?.role === "admin" && renderAdminDashboard()}
+        {user?.role === "faculty" && renderFacultyDashboard()}
+        {user?.role === "student" && renderStudentDashboard()}
       </div>
-
-      {user?.role === "admin" && renderAdminDashboard()}
-      {user?.role === "faculty" && renderFacultyDashboard()}
-      {user?.role === "student" && renderStudentDashboard()}
     </div>
   )
 }
 
-// Event Management Modal Component - NEW
+// Stat Card Component
+const StatCard = ({ icon: Icon, title, value, color, trend }) => {
+  const colorClasses = {
+    blue: "from-blue-500 to-blue-600 bg-blue-50 text-blue-600",
+    green: "from-green-500 to-green-600 bg-green-50 text-green-600",
+    yellow: "from-yellow-500 to-yellow-600 bg-yellow-50 text-yellow-600",
+    purple: "from-purple-500 to-purple-600 bg-purple-50 text-purple-600",
+    orange: "from-orange-500 to-orange-600 bg-orange-50 text-orange-600",
+  }
+
+  return (
+    <div className="card p-6 hover-lift animate-slide-in">
+      <div className="flex items-center justify-between">
+        <div className="flex-1">
+          <div
+            className={`w-12 h-12 bg-gradient-to-br ${colorClasses[color].split(" ")[0]} ${colorClasses[color].split(" ")[1]} rounded-2xl flex items-center justify-center mb-4 shadow-lg`}
+          >
+            <Icon className="h-6 w-6 text-white" />
+          </div>
+          <p className="text-sm font-medium text-gray-600 mb-1">{title}</p>
+          <p className="text-3xl font-bold text-gray-900 mb-2">{value}</p>
+          <p className={`text-xs font-medium ${colorClasses[color].split(" ")[2]}`}>{trend}</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Quick Action Button Component
+const QuickActionButton = ({ onClick, icon: Icon, title, description, color }) => {
+  const colorClasses = {
+    blue: "hover:bg-blue-50 text-blue-600 border-blue-200",
+    green: "hover:bg-green-50 text-green-600 border-green-200",
+    orange: "hover:bg-orange-50 text-orange-600 border-orange-200",
+    purple: "hover:bg-purple-50 text-purple-600 border-purple-200",
+  }
+
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full p-4 text-left border-2 rounded-2xl transition-all duration-200 hover-lift ${colorClasses[color]}`}
+    >
+      <div className="flex items-center space-x-3">
+        <Icon className="h-5 w-5 flex-shrink-0" />
+        <div>
+          <div className="font-medium text-gray-900">{title}</div>
+          <div className="text-sm text-gray-500">{description}</div>
+        </div>
+      </div>
+    </button>
+  )
+}
+
+// Event Management Modal Component
 const EventManagementModal = ({ events, onClose, onUpdateCapacity }) => {
   const [editingEvent, setEditingEvent] = useState(null)
   const [newCapacity, setNewCapacity] = useState("")
@@ -412,48 +448,46 @@ const EventManagementModal = ({ events, onClose, onUpdateCapacity }) => {
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-6xl max-h-[80vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold">Event Capacity Management</h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded">
-            <X className="h-5 w-5" />
+    <div className="modal-backdrop">
+      <div className="modal-content max-w-6xl">
+        <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between rounded-t-2xl">
+          <h2 className="text-2xl font-bold text-gray-900">Event Capacity Management</h2>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-xl transition-colors duration-200">
+            <X className="h-6 w-6 text-gray-500" />
           </button>
         </div>
 
-        <div className="space-y-4">
+        <div className="p-6 space-y-4 max-h-96 overflow-y-auto">
           {events.map((event) => (
-            <div key={event._id} className="card p-4">
+            <div key={event._id} className="card p-6 hover-lift">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
-                  <h3 className="font-semibold text-gray-900">{event.title}</h3>
-                  <p className="text-sm text-gray-600 mt-1">{event.description}</p>
-                  <div className="mt-2 text-sm text-gray-500">
-                    <p>
+                  <h3 className="font-bold text-gray-900 text-lg mb-2">{event.title}</h3>
+                  <p className="text-gray-600 mb-4 line-clamp-2">{event.description}</p>
+                  <div className="grid grid-cols-2 gap-4 text-sm text-gray-500">
+                    <div>
                       <strong>Date:</strong> {new Date(event.date).toLocaleDateString()} at {event.time}
-                    </p>
-                    <p>
+                    </div>
+                    <div>
                       <strong>Venue:</strong> {event.venue}
-                    </p>
-                    <p>
+                    </div>
+                    <div>
                       <strong>Organizer:</strong> {event.organizer?.name}
-                    </p>
-                    <p>
-                      <strong>Current Capacity:</strong> {event.maxParticipants || "Unlimited"}
-                    </p>
-                    <p>
-                      <strong>Registered:</strong> {event.registeredStudents?.length || 0}
-                    </p>
+                    </div>
+                    <div>
+                      <strong>Capacity:</strong> {event.maxParticipants || "Unlimited"}
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-center space-x-4">
+                    <span className="badge badge-primary">{event.registeredStudents?.length || 0} registered</span>
                     {event.maxParticipants > 0 && event.registeredStudents?.length >= event.maxParticipants && (
-                      <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800 mt-1">
-                        Event Full
-                      </span>
+                      <span className="badge badge-danger">Event Full</span>
                     )}
                   </div>
                 </div>
-                <div className="ml-4">
+                <div className="ml-6">
                   {editingEvent === event._id ? (
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-3">
                       <input
                         type="number"
                         min="0"
@@ -483,7 +517,7 @@ const EventManagementModal = ({ events, onClose, onUpdateCapacity }) => {
                       }}
                       className="btn btn-outline btn-sm flex items-center"
                     >
-                      <Edit className="h-4 w-4 mr-1" />
+                      <Edit className="h-4 w-4 mr-2" />
                       Edit Capacity
                     </button>
                   )}
@@ -497,7 +531,7 @@ const EventManagementModal = ({ events, onClose, onUpdateCapacity }) => {
   )
 }
 
-// Course Management Modal Component - UPDATED WITH DEPARTMENT FILTER
+// Course Management Modal Component
 const CourseManagementModal = ({ onClose }) => {
   const [courses, setCourses] = useState([])
   const [loading, setLoading] = useState(true)
@@ -515,7 +549,7 @@ const CourseManagementModal = ({ onClose }) => {
       if (departmentFilter !== "all") {
         params.department = departmentFilter
       }
-      
+
       const response = await axios.get("/admin/courses", { params })
       setCourses(response.data)
     } catch (error) {
@@ -526,123 +560,121 @@ const CourseManagementModal = ({ onClose }) => {
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-6xl max-h-[80vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold">Course Management</h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded">
-            <X className="h-5 w-5" />
+    <div className="modal-backdrop">
+      <div className="modal-content max-w-6xl">
+        <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between rounded-t-2xl">
+          <h2 className="text-2xl font-bold text-gray-900">Course Management</h2>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-xl transition-colors duration-200">
+            <X className="h-6 w-6 text-gray-500" />
           </button>
         </div>
 
-        {/* Department Filter */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">Filter by Department</label>
-          <select
-            value={departmentFilter}
-            onChange={(e) => setDepartmentFilter(e.target.value)}
-            className="input max-w-xs"
-          >
-            <option value="all">All Departments</option>
-            <option value="Computer Science">Computer Science</option>
-            <option value="Information Technology">Information Technology</option>
-            <option value="Biomedical">Biomedical</option>
-            <option value="Electronics and Communication">Electronics and Communication</option>
-            <option value="Mechanical">Mechanical</option>
-            <option value="Civil">Civil</option>
-          </select>
-        </div>
+        <div className="p-6">
+          {/* Department Filter */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-3">Filter by Department</label>
+            <select
+              value={departmentFilter}
+              onChange={(e) => setDepartmentFilter(e.target.value)}
+              className="input max-w-xs"
+            >
+              <option value="all">All Departments</option>
+              <option value="Computer Science">Computer Science</option>
+              <option value="Information Technology">Information Technology</option>
+              <option value="Biomedical">Biomedical</option>
+              <option value="Electronics and Communication">Electronics and Communication</option>
+              <option value="Mechanical">Mechanical</option>
+              <option value="Civil">Civil</option>
+            </select>
+          </div>
 
-        {loading ? (
-          <LoadingSpinner />
-        ) : (
-          <div className="space-y-4">
-            {/* Course Statistics */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-              <div className="card p-4">
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-blue-600">{courses.length}</p>
-                  <p className="text-sm text-gray-600">
+          {loading ? (
+            <LoadingSpinner />
+          ) : (
+            <div className="space-y-6">
+              {/* Course Statistics */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div className="card p-6 text-center hover-lift">
+                  <div className="text-3xl font-bold text-blue-600 mb-2">{courses.length}</div>
+                  <div className="text-sm text-gray-600">
                     {departmentFilter === "all" ? "Total Courses" : `${departmentFilter} Courses`}
-                  </p>
-                </div>
-              </div>
-              <div className="card p-4">
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-green-600">
-                    {courses.reduce((acc, course) => acc + course.enrolledStudents.length, 0)}
-                  </p>
-                  <p className="text-sm text-gray-600">Total Enrollments</p>
-                </div>
-              </div>
-              <div className="card p-4">
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-purple-600">
-                    {[...new Set(courses.map(course => course.faculty._id))].length}
-                  </p>
-                  <p className="text-sm text-gray-600">Active Faculty</p>
-                </div>
-              </div>
-            </div>
-
-            {courses.map((course) => (
-              <div key={course._id} className="card p-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-3 mb-2">
-                      <h3 className="font-semibold text-gray-900">{course.title}</h3>
-                      <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
-                        {course.department}
-                      </span>
-                    </div>
-                    <p className="text-sm text-gray-600">
-                      {course.code} • Semester {course.semester} • {course.credits} Credits
-                    </p>
-                    <p className="text-sm text-gray-500 mt-1">Faculty: {course.faculty.name}</p>
-                    <p className="text-sm text-gray-500">
-                      Students: {course.enrolledStudents.length} | 
-                      Assignments: {course.assignments?.length || 0} | 
-                      Materials: {course.materials?.length || 0}
-                    </p>
                   </div>
-                  <button
-                    onClick={() => setSelectedCourse(selectedCourse === course._id ? null : course._id)}
-                    className="btn btn-outline btn-sm"
-                  >
-                    {selectedCourse === course._id ? "Hide Students" : "View Students"}
-                  </button>
                 </div>
+                <div className="card p-6 text-center hover-lift">
+                  <div className="text-3xl font-bold text-green-600 mb-2">
+                    {courses.reduce((acc, course) => acc + course.enrolledStudents.length, 0)}
+                  </div>
+                  <div className="text-sm text-gray-600">Total Enrollments</div>
+                </div>
+                <div className="card p-6 text-center hover-lift">
+                  <div className="text-3xl font-bold text-purple-600 mb-2">
+                    {[...new Set(courses.map((course) => course.faculty._id))].length}
+                  </div>
+                  <div className="text-sm text-gray-600">Active Faculty</div>
+                </div>
+              </div>
 
-                {selectedCourse === course._id && (
-                  <div className="mt-4 border-t pt-4">
-                    <h4 className="font-medium text-gray-900 mb-2">Enrolled Students:</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                      {course.enrolledStudents.map((student) => (
-                        <div key={student._id} className="text-sm p-2 bg-gray-50 rounded">
-                          <div className="font-medium">{student.name}</div>
-                          <div className="text-gray-600">{student.userId}</div>
-                          <div className="text-gray-500">{student.email}</div>
+              <div className="space-y-4 max-h-96 overflow-y-auto">
+                {courses.map((course) => (
+                  <div key={course._id} className="card p-6 hover-lift">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-3 mb-3">
+                          <h3 className="font-bold text-gray-900 text-lg">{course.title}</h3>
+                          <span className="badge badge-primary">{course.department}</span>
                         </div>
-                      ))}
+                        <div className="grid grid-cols-2 gap-4 text-sm text-gray-600 mb-3">
+                          <div>
+                            {course.code} • Semester {course.semester} • {course.credits} Credits
+                          </div>
+                          <div>Faculty: {course.faculty.name}</div>
+                        </div>
+                        <div className="flex items-center space-x-4 text-sm text-gray-500">
+                          <span className="badge badge-success">{course.enrolledStudents.length} Students</span>
+                          <span className="badge badge-warning">{course.assignments?.length || 0} Assignments</span>
+                          <span className="badge badge-primary">{course.materials?.length || 0} Materials</span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setSelectedCourse(selectedCourse === course._id ? null : course._id)}
+                        className="btn btn-outline btn-sm"
+                      >
+                        {selectedCourse === course._id ? "Hide Students" : "View Students"}
+                      </button>
                     </div>
+
+                    {selectedCourse === course._id && (
+                      <div className="mt-6 pt-6 border-t border-gray-100 animate-fade-in">
+                        <h4 className="font-medium text-gray-900 mb-4">Enrolled Students:</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                          {course.enrolledStudents.map((student) => (
+                            <div key={student._id} className="p-3 bg-gray-50 rounded-xl">
+                              <div className="font-medium text-gray-900">{student.name}</div>
+                              <div className="text-sm text-gray-600">{student.userId}</div>
+                              <div className="text-xs text-gray-500">{student.email}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {courses.length === 0 && (
+                  <div className="text-center py-12">
+                    <BookOpen className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No courses found</h3>
+                    <p className="text-gray-600">
+                      {departmentFilter === "all"
+                        ? "No courses have been created yet."
+                        : `No courses found for ${departmentFilter} department.`}
+                    </p>
                   </div>
                 )}
               </div>
-            ))}
-
-            {courses.length === 0 && (
-              <div className="text-center py-8">
-                <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No courses found</h3>
-                <p className="text-gray-600">
-                  {departmentFilter === "all" 
-                    ? "No courses have been created yet." 
-                    : `No courses found for ${departmentFilter} department.`}
-                </p>
-              </div>
-            )}
-          </div>
-        )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -695,99 +727,112 @@ const UserManagementModal = ({ onClose, onUpdate }) => {
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-6xl max-h-[80vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold">User Management</h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded">
-            <X className="h-5 w-5" />
+    <div className="modal-backdrop">
+      <div className="modal-content max-w-6xl">
+        <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between rounded-t-2xl">
+          <h2 className="text-2xl font-bold text-gray-900">User Management</h2>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-xl transition-colors duration-200">
+            <X className="h-6 w-6 text-gray-500" />
           </button>
         </div>
 
-        <div className="flex space-x-4 mb-4">
-          <select
-            value={filter.role}
-            onChange={(e) => setFilter({ ...filter, role: e.target.value })}
-            className="input"
-          >
-            <option value="all">All Roles</option>
-            <option value="student">Students</option>
-            <option value="faculty">Faculty</option>
-          </select>
-          <select
-            value={filter.department}
-            onChange={(e) => setFilter({ ...filter, department: e.target.value })}
-            className="input"
-          >
-            <option value="all">All Departments</option>
-            <option value="Computer Science">Computer Science</option>
-            <option value="Information Technology">Information Technology</option>
-            <option value="Biomedical">Biomedical</option>
-          </select>
-        </div>
-
-        {loading ? (
-          <LoadingSpinner />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {users.map((user) => (
-                  <tr key={user._id}>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">{user.name}</div>
-                        <div className="text-sm text-gray-500">{user.email}</div>
-                        <div className="text-xs text-gray-400">{user.userId}</div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`capitalize text-sm text-gray-900 ${user.role}`}>{user.role}</span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{user.department || "N/A"}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                          user.isActive ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-                        }`}
-                      >
-                        {user.isActive ? "Active" : "Inactive"}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
-                      <button
-                        onClick={() => toggleUserStatus(user._id)}
-                        className={`btn btn-sm ${user.isActive ? "btn-outline text-red-600" : "btn-outline text-green-600"}`}
-                      >
-                        {user.isActive ? "Deactivate" : "Activate"}
-                      </button>
-                      {user.role !== "admin" && (
-                        <button onClick={() => deleteUser(user._id)} className="btn btn-sm btn-outline text-red-600">
-                          Delete
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <div className="p-6">
+          <div className="flex space-x-4 mb-6">
+            <select
+              value={filter.role}
+              onChange={(e) => setFilter({ ...filter, role: e.target.value })}
+              className="input"
+            >
+              <option value="all">All Roles</option>
+              <option value="student">Students</option>
+              <option value="faculty">Faculty</option>
+            </select>
+            <select
+              value={filter.department}
+              onChange={(e) => setFilter({ ...filter, department: e.target.value })}
+              className="input"
+            >
+              <option value="all">All Departments</option>
+              <option value="Computer Science">Computer Science</option>
+              <option value="Information Technology">Information Technology</option>
+              <option value="Biomedical">Biomedical</option>
+            </select>
           </div>
-        )}
+
+          {loading ? (
+            <LoadingSpinner />
+          ) : (
+            <div className="table-container">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="table-header">
+                  <tr>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      User
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Role
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Department
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {users.map((user) => (
+                    <tr key={user._id} className="hover:bg-gray-50 transition-colors duration-200">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 bg-gradient-to-br from-gray-400 to-gray-500 rounded-xl flex items-center justify-center">
+                            <User className="h-5 w-5 text-white" />
+                          </div>
+                          <div>
+                            <div className="text-sm font-medium text-gray-900">{user.name}</div>
+                            <div className="text-sm text-gray-500">{user.email}</div>
+                            <div className="text-xs text-gray-400">{user.userId}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="badge badge-primary capitalize">{user.role}</span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{user.department || "N/A"}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`badge ${user.isActive ? "badge-success" : "badge-danger"}`}>
+                          {user.isActive ? "Active" : "Inactive"}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
+                        <button
+                          onClick={() => toggleUserStatus(user._id)}
+                          className={`btn btn-sm ${user.isActive ? "btn-outline text-red-600" : "btn-outline text-green-600"}`}
+                        >
+                          {user.isActive ? "Deactivate" : "Activate"}
+                        </button>
+                        {user.role !== "admin" && (
+                          <button onClick={() => deleteUser(user._id)} className="btn btn-sm btn-outline text-red-600">
+                            Delete
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
 }
 
-// Placement Upload Modal Component - COMPLETELY REWRITTEN WITH BETTER ERROR HANDLING
+// Placement Upload Modal Component
 export const PlacementUploadModal = ({ onClose }) => {
   const [file, setFile] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -848,7 +893,6 @@ export const PlacementUploadModal = ({ onClose }) => {
       setUploadResults(response.data.results)
       toast.success(response.data.message)
 
-      // Show detailed results
       if (response.data.results.errors.length > 0) {
         console.log("Upload errors:", response.data.results.errors)
       }
@@ -857,7 +901,6 @@ export const PlacementUploadModal = ({ onClose }) => {
       const errorMessage = error.response?.data?.message || "Upload failed"
       toast.error(errorMessage)
 
-      // If there are validation errors, show them
       if (error.response?.data?.results) {
         setUploadResults(error.response.data.results)
       }
@@ -885,57 +928,57 @@ export const PlacementUploadModal = ({ onClose }) => {
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold">Upload Placement Data</h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded">
-            <X className="h-5 w-5" />
+    <div className="modal-backdrop">
+      <div className="modal-content max-w-4xl">
+        <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between rounded-t-2xl">
+          <h2 className="text-2xl font-bold text-gray-900">Upload Placement Data</h2>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-xl transition-colors duration-200">
+            <X className="h-6 w-6 text-gray-500" />
           </button>
         </div>
 
-        <div className="space-y-6">
+        <div className="p-6 space-y-8">
           {/* Excel Upload Section */}
-          <div className="border rounded-lg p-4">
-            <h3 className="font-medium mb-3">Upload Excel File</h3>
-            <div className="space-y-3">
+          <div className="card p-6 hover-lift">
+            <h3 className="font-bold text-gray-900 text-lg mb-4 flex items-center">
+              <Upload className="h-5 w-5 mr-2 text-blue-500" />
+              Upload Excel File
+            </h3>
+            <div className="space-y-4">
               <input
                 type="file"
                 accept=".xlsx,.xls,.csv"
                 onChange={(e) => setFile(e.target.files[0])}
                 className="input"
               />
-              <div className="text-sm text-gray-600 bg-blue-50 p-3 rounded">
-                <p className="font-medium mb-2 text-blue-800">Excel Format Requirements:</p>
-                <p className="font-semibold text-blue-700">
+              <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-6 rounded-2xl border border-blue-100">
+                <p className="font-bold text-blue-800 mb-3">📋 Excel Format Requirements:</p>
+                <p className="font-semibold text-blue-700 mb-3">
                   Required columns: StudentID, StudentName, CompanyName, Package, YearOfPlacement, Department, JobRole
                 </p>
-                <div className="mt-2 text-blue-600">
-                  <p>
-                    <strong>Column Variations Supported:</strong>
-                  </p>
-                  <ul className="list-disc list-inside mt-1 text-sm">
-                    <li>StudentID: StudentID, studentId, student_id, STUDENTID</li>
-                    <li>StudentName: StudentName, studentName, student_name, STUDENTNAME</li>
-                    <li>CompanyName: CompanyName, companyName, company_name, COMPANYNAME, Company</li>
-                    <li>Package: Package, package, PACKAGE, Salary, salary</li>
-                    <li>
-                      YearOfPlacement: YearOfPlacement, yearOfPlacement, year_of_placement, YEAROFPLACEMENT, Year, year
-                    </li>
-                    <li>Department: Department, department, DEPARTMENT</li>
-                    <li>JobRole: JobRole, jobRole, job_role, JOBROLE, Role, role</li>
-                  </ul>
+                <div className="text-blue-600 space-y-2">
+                  <p className="font-medium">Column Variations Supported:</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                    <div>• StudentID: StudentID, studentId, student_id, STUDENTID</div>
+                    <div>• StudentName: StudentName, studentName, student_name, STUDENTNAME</div>
+                    <div>• CompanyName: CompanyName, companyName, company_name, COMPANYNAME, Company</div>
+                    <div>• Package: Package, package, PACKAGE, Salary, salary</div>
+                    <div>
+                      • YearOfPlacement: YearOfPlacement, yearOfPlacement, year_of_placement, YEAROFPLACEMENT, Year,
+                      year
+                    </div>
+                    <div>• Department: Department, department, DEPARTMENT</div>
+                    <div>• JobRole: JobRole, jobRole, job_role, JOBROLE, Role, role</div>
+                  </div>
                 </div>
-                <div className="mt-2 text-red-600">
-                  <p>
-                    <strong>Validation Rules:</strong>
-                  </p>
-                  <ul className="list-disc list-inside mt-1 text-sm">
-                    <li>StudentID must exist in the database</li>
-                    <li>StudentName must match exactly with database</li>
-                    <li>Department must match if provided</li>
-                    <li>Package must be a valid number</li>
-                    <li>Year must be between 2000 and current year + 5</li>
+                <div className="mt-4 p-4 bg-red-50 rounded-xl border border-red-200">
+                  <p className="font-medium text-red-800 mb-2">⚠️ Validation Rules:</p>
+                  <ul className="text-sm text-red-600 space-y-1">
+                    <li>• StudentID must exist in the database</li>
+                    <li>• StudentName must match exactly with database</li>
+                    <li>• Department must match if provided</li>
+                    <li>• Package must be a valid number</li>
+                    <li>• Year must be between 2000 and current year + 5</li>
                   </ul>
                 </div>
               </div>
@@ -951,35 +994,47 @@ export const PlacementUploadModal = ({ onClose }) => {
 
             {/* Upload Results */}
             {uploadResults && (
-              <div className="mt-4 p-4 bg-gray-50 rounded">
-                <h4 className="font-medium text-gray-900 mb-2">Upload Results:</h4>
-                <div className="space-y-2">
-                  <p className="text-green-600">✓ {uploadResults.success} new records added</p>
-                  <p className="text-blue-600">✓ {uploadResults.updated} records updated</p>
-                  <p className="text-gray-600">📊 {uploadResults.totalProcessed} total rows processed</p>
-
-                  {uploadResults.errors && uploadResults.errors.length > 0 && (
-                    <div className="mt-3">
-                      <p className="text-red-600 font-medium">❌ {uploadResults.errors.length} errors found:</p>
-                      <div className="max-h-40 overflow-y-auto text-sm text-red-600 mt-2 bg-red-50 p-2 rounded">
-                        {uploadResults.errors.map((error, index) => (
-                          <p key={index} className="mb-1">
-                            • {error}
-                          </p>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+              <div className="mt-6 p-6 bg-gray-50 rounded-2xl animate-fade-in">
+                <h4 className="font-bold text-gray-900 mb-4">📊 Upload Results:</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                  <div className="text-center p-4 bg-green-100 rounded-xl">
+                    <div className="text-2xl font-bold text-green-600">{uploadResults.success}</div>
+                    <div className="text-sm text-green-700">New Records</div>
+                  </div>
+                  <div className="text-center p-4 bg-blue-100 rounded-xl">
+                    <div className="text-2xl font-bold text-blue-600">{uploadResults.updated}</div>
+                    <div className="text-sm text-blue-700">Updated Records</div>
+                  </div>
+                  <div className="text-center p-4 bg-gray-100 rounded-xl">
+                    <div className="text-2xl font-bold text-gray-600">{uploadResults.totalProcessed}</div>
+                    <div className="text-sm text-gray-700">Total Processed</div>
+                  </div>
                 </div>
+
+                {uploadResults.errors && uploadResults.errors.length > 0 && (
+                  <div className="p-4 bg-red-50 rounded-xl border border-red-200">
+                    <p className="font-medium text-red-800 mb-2">❌ {uploadResults.errors.length} errors found:</p>
+                    <div className="max-h-40 overflow-y-auto text-sm text-red-600 space-y-1">
+                      {uploadResults.errors.map((error, index) => (
+                        <div key={index} className="p-2 bg-red-100 rounded">
+                          • {error}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
 
           {/* Manual Entry Section */}
-          <div className="border rounded-lg p-4">
-            <h3 className="font-medium mb-3">Add Single Record</h3>
-            <div className="space-y-4">
-              <div className="flex space-x-2">
+          <div className="card p-6 hover-lift">
+            <h3 className="font-bold text-gray-900 text-lg mb-4 flex items-center">
+              <Plus className="h-5 w-5 mr-2 text-green-500" />
+              Add Single Record
+            </h3>
+            <div className="space-y-6">
+              <div className="flex space-x-3">
                 <input
                   type="text"
                   placeholder="Student ID (e.g., STU0001)"
@@ -998,14 +1053,15 @@ export const PlacementUploadModal = ({ onClose }) => {
               </div>
 
               {studentData && (
-                <div className="p-3 bg-green-50 rounded border border-green-200">
-                  <p className="text-sm text-green-800">
+                <div className="p-4 bg-green-50 rounded-2xl border border-green-200 animate-fade-in">
+                  <p className="text-green-800 flex items-center">
+                    <CheckCircle className="h-5 w-5 mr-2" />
                     <strong>Found:</strong> {studentData.name} - {studentData.department} ({studentData.email})
                   </p>
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <input
                   type="text"
                   placeholder="Student Name"
@@ -1062,7 +1118,7 @@ export const PlacementUploadModal = ({ onClose }) => {
                   <option value="off-campus">Off-Campus</option>
                 </select>
               </div>
-              <button onClick={handleManualAdd} disabled={loading} className="btn btn-primary mt-4">
+              <button onClick={handleManualAdd} disabled={loading} className="btn btn-primary">
                 {loading ? "Adding..." : "Add Record"}
               </button>
             </div>
@@ -1076,62 +1132,69 @@ export const PlacementUploadModal = ({ onClose }) => {
 // Pending Events Modal Component
 const PendingEventsModal = ({ events, onClose, onApprove }) => {
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[80vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold">Pending Events</h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded">
-            <X className="h-5 w-5" />
+    <div className="modal-backdrop">
+      <div className="modal-content max-w-4xl">
+        <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between rounded-t-2xl">
+          <h2 className="text-2xl font-bold text-gray-900">Pending Events</h2>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-xl transition-colors duration-200">
+            <X className="h-6 w-6 text-gray-500" />
           </button>
         </div>
 
-        {events.length === 0 ? (
-          <p className="text-gray-600 text-center py-8">No pending events</p>
-        ) : (
-          <div className="space-y-4">
-            {events.map((event) => (
-              <div key={event._id} className="card p-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900">{event.title}</h3>
-                    <p className="text-sm text-gray-600 mt-1">{event.description}</p>
-                    <div className="mt-2 text-sm text-gray-500">
-                      <p>
-                        <strong>Date:</strong> {new Date(event.date).toLocaleDateString()} at {event.time}
-                      </p>
-                      <p>
-                        <strong>Venue:</strong> {event.venue}
-                      </p>
-                      <p>
-                        <strong>Organizer:</strong> {event.organizer.name} ({event.organizer.department})
-                      </p>
+        <div className="p-6">
+          {events.length === 0 ? (
+            <div className="text-center py-12">
+              <Clock className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-600 text-lg">No pending events</p>
+            </div>
+          ) : (
+            <div className="space-y-4 max-h-96 overflow-y-auto">
+              {events.map((event) => (
+                <div key={event._id} className="card p-6 hover-lift">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <h3 className="font-bold text-gray-900 text-lg mb-2">{event.title}</h3>
+                      <p className="text-gray-600 mb-4 line-clamp-2">{event.description}</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-gray-500">
+                        <div>
+                          <strong>Date:</strong> {new Date(event.date).toLocaleDateString()} at {event.time}
+                        </div>
+                        <div>
+                          <strong>Venue:</strong> {event.venue}
+                        </div>
+                        <div>
+                          <strong>Organizer:</strong> {event.organizer.name} ({event.organizer.department})
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex space-x-3 ml-6">
+                      <button
+                        onClick={() => onApprove(event._id, "approved")}
+                        className="btn btn-outline btn-sm text-green-600 hover:bg-green-50 border-green-200"
+                      >
+                        <CheckCircle className="h-4 w-4 mr-1" />
+                        Approve
+                      </button>
+                      <button
+                        onClick={() => onApprove(event._id, "rejected")}
+                        className="btn btn-outline btn-sm text-red-600 hover:bg-red-50 border-red-200"
+                      >
+                        <X className="h-4 w-4 mr-1" />
+                        Reject
+                      </button>
                     </div>
                   </div>
-                  <div className="flex space-x-2 ml-4">
-                    <button
-                      onClick={() => onApprove(event._id, "approved")}
-                      className="btn btn-outline btn-sm text-green-600 hover:bg-green-50"
-                    >
-                      Approve
-                    </button>
-                    <button
-                      onClick={() => onApprove(event._id, "rejected")}
-                      className="btn btn-outline btn-sm text-red-600 hover:bg-red-50"
-                    >
-                      Reject
-                    </button>
-                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
 }
 
-// Broadcast Form Component - UPDATED WITH BETTER RECIPIENT HANDLING
+// Broadcast Form Component
 export const BroadcastForm = ({ onClose }) => {
   const [formData, setFormData] = useState({
     title: "",
@@ -1175,16 +1238,16 @@ export const BroadcastForm = ({ onClose }) => {
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[80vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold">Broadcast Notification</h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded">
-            <X className="h-5 w-5" />
+    <div className="modal-backdrop">
+      <div className="modal-content">
+        <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between rounded-t-2xl">
+          <h2 className="text-2xl font-bold text-gray-900">Broadcast Notification</h2>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-xl transition-colors duration-200">
+            <X className="h-6 w-6 text-gray-500" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
           <div className="form-group">
             <label className="form-label">Title</label>
             <input
@@ -1285,12 +1348,13 @@ export const BroadcastForm = ({ onClose }) => {
               disabled={loading}
             />
             {files.length > 0 && (
-              <div className="mt-2">
-                <p className="text-sm text-gray-600">{files.length} file(s) selected</p>
-                <div className="text-xs text-gray-500">
+              <div className="mt-3 p-3 bg-gray-50 rounded-xl">
+                <p className="text-sm font-medium text-gray-700 mb-2">{files.length} file(s) selected</p>
+                <div className="space-y-1">
                   {files.map((file, index) => (
-                    <div key={index}>
-                      • {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                    <div key={index} className="text-xs text-gray-600 flex items-center justify-between">
+                      <span>• {file.name}</span>
+                      <span>({(file.size / 1024 / 1024).toFixed(2)} MB)</span>
                     </div>
                   ))}
                 </div>
@@ -1298,7 +1362,7 @@ export const BroadcastForm = ({ onClose }) => {
             )}
           </div>
 
-          <div className="flex justify-end space-x-3">
+          <div className="flex justify-end space-x-3 pt-4 border-t border-gray-100">
             <button type="button" onClick={onClose} className="btn btn-outline" disabled={loading}>
               Cancel
             </button>

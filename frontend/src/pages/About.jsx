@@ -11,21 +11,20 @@ const About = () => {
   }
 
   return (
-    <div className="space-y-8">
-      {/* Header with Back Button */}
-      <div className="flex items-center space-x-4">
-        <button onClick={handleGoBack} className="btn btn-outline flex items-center">
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back
-        </button>
+    <div className="max-w-5xl mx-auto py-10 px-4 space-y-10">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row items-center md:items-start md:space-x-6 mb-8">
+        <div className="flex-shrink-0 mb-4 md:mb-0">
+          <img src="/vite.svg" alt="Smart Campus Portal" className="h-16 w-16 rounded-full shadow-lg" />
+        </div>
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">About Smart Campus Portal</h1>
-          <p className="text-gray-600 mt-2">Empowering education through technology</p>
+          <h1 className="text-4xl font-extrabold text-gray-900">About Smart Campus Portal</h1>
+          <p className="text-gray-500 mt-2 text-lg">Empowering education through technology</p>
         </div>
       </div>
 
       {/* Mission Section */}
-      <div className="card p-8">
+      <div className="bg-white rounded-xl shadow p-8">
         <div className="text-center mb-8">
           <Target className="h-12 w-12 text-blue-600 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-gray-900 mb-4">Our Mission</h2>
@@ -39,23 +38,21 @@ const About = () => {
 
       {/* Features Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="card p-6 text-center">
+        <div className="bg-white rounded-xl shadow p-6 text-center">
           <Users className="h-10 w-10 text-green-600 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-900 mb-2">Student Management</h3>
           <p className="text-gray-600 text-sm">
             Comprehensive student profiles, enrollment tracking, and academic progress monitoring.
           </p>
         </div>
-
-        <div className="card p-6 text-center">
+        <div className="bg-white rounded-xl shadow p-6 text-center">
           <Award className="h-10 w-10 text-purple-600 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-900 mb-2">Course Management</h3>
           <p className="text-gray-600 text-sm">
             Easy course creation, enrollment management, and assignment tracking for faculty.
           </p>
         </div>
-
-        <div className="card p-6 text-center">
+        <div className="bg-white rounded-xl shadow p-6 text-center">
           <Heart className="h-10 w-10 text-red-600 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-900 mb-2">Event Coordination</h3>
           <p className="text-gray-600 text-sm">
@@ -65,7 +62,7 @@ const About = () => {
       </div>
 
       {/* Statistics */}
-      <div className="card p-8">
+      <div className="bg-white rounded-xl shadow p-8">
         <h2 className="text-2xl font-bold text-gray-900 text-center mb-8">Platform Impact</h2>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <div className="text-center">
@@ -87,8 +84,8 @@ const About = () => {
         </div>
       </div>
 
-      {/* Team Section */}
-      <div className="card p-8">
+      {/* Values Section */}
+      <div className="bg-white rounded-xl shadow p-8">
         <h2 className="text-2xl font-bold text-gray-900 text-center mb-8">Our Values</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="text-center">
@@ -113,7 +110,7 @@ const About = () => {
       </div>
 
       {/* Contact Information */}
-      <div className="card p-8">
+      <div className="bg-white rounded-xl shadow p-8">
         <h2 className="text-2xl font-bold text-gray-900 text-center mb-6">Get in Touch</h2>
         <div className="text-center space-y-2">
           <p className="text-gray-600">
