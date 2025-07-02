@@ -10,7 +10,7 @@ pipeline {
         stage('Pull Docker Image') {
             steps {
                 script {
-                    bat "docker pull %IMAGE_NAME%"
+                    bat "docker pull ${env.IMAGE_NAME}"
                 }
             }
         }
@@ -18,12 +18,14 @@ pipeline {
         stage('Remove Existing Container') {
             steps {
                 script {
-                    bat '''
-                    FOR /F "tokens=*" %%i IN ('docker ps -a -q -f "name=%CONTAINER_NAME%"') DO (
-                        docker stop %%i || exit 0
+                    // More reliable way to stop and remove containers
+                    bat """
+                    @echo off
+                    for /f "tokens=*" %%i in ('docker ps -aq -f "name=${env.CONTAINER_NAME}"') do (
+                        docker stop %%i
                         docker rm %%i
                     )
-                    '''
+                    """
                 }
             }
         }
@@ -31,7 +33,7 @@ pipeline {
         stage('Run Docker Container') {
             steps {
                 script {
-                    bat "docker run -d --name %CONTAINER_NAME% -p 5000:5000 -p 5173:5173 %IMAGE_NAME%"
+                    bat "docker run -d --name ${env.CONTAINER_NAME} -p 5000:5000 -p 5173:5173 ${env.IMAGE_NAME}"
                 }
             }
         }
@@ -40,6 +42,14 @@ pipeline {
     post {
         always {
             echo 'Pipeline completed.'
+        }
+        failure {
+            echo 'Pipeline failed!'
+            // You can add additional failure notifications here
+        }
+        success {
+            echo 'Pipeline succeeded!'
+            // You can add additional success notifications here
         }
     }
 }
