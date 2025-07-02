@@ -14,12 +14,12 @@ pipeline {
                 }
             }
         }
-        stage('Stop Existing Container') {
+        stage('Remove Existing Container') {
             steps {
                 script {
                     sh """
-                    if [ \$(docker ps -q -f name=${CONTAINER_NAME}) ]; then
-                        docker stop ${CONTAINER_NAME}
+                    if [ \$(docker ps -a -q -f name=${CONTAINER_NAME}) ]; then
+                        docker stop ${CONTAINER_NAME} || true
                         docker rm ${CONTAINER_NAME}
                     fi
                     """
