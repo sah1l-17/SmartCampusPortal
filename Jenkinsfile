@@ -18,12 +18,12 @@ pipeline {
         stage('Remove Existing Container') {
             steps {
                 script {
-                    bat """
-                    FOR /F "tokens=*" %%i IN ('docker ps -a -q -f name=%CONTAINER_NAME%') DO (
+                    bat '''
+                    FOR /F "tokens=*" %%i IN ('docker ps -a -q -f "name=%CONTAINER_NAME%"') DO (
                         docker stop %%i || exit 0
                         docker rm %%i
                     )
-                    """
+                    '''
                 }
             }
         }
