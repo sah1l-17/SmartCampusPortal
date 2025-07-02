@@ -114,13 +114,10 @@ const About = () => {
         <h2 className="text-2xl font-bold text-gray-900 text-center mb-6">Get in Touch</h2>
         <div className="text-center space-y-2">
           <p className="text-gray-600">
-            <strong>Email:</strong> support@smartcampusportal.edu
+            <strong>Email:</strong> mangesh.shah29@gmail.com
           </p>
           <p className="text-gray-600">
-            <strong>Phone:</strong> +1 (555) 123-4567
-          </p>
-          <p className="text-gray-600">
-            <strong>Address:</strong> 123 Campus Drive, University City, UC 12345
+            <strong>Phone:</strong> +91 9619519031
           </p>
         </div>
       </div>
