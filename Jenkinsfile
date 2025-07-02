@@ -10,32 +10,33 @@ pipeline {
         stage('Pull Docker Image') {
             steps {
                 script {
-                    sh "docker pull ${IMAGE_NAME}"
+                    bat "docker pull %IMAGE_NAME%"
                 }
             }
         }
+
         stage('Remove Existing Container') {
             steps {
                 script {
-                    sh """
-                    if [ \$(docker ps -a -q -f name=${CONTAINER_NAME}) ]; then
-                        docker stop ${CONTAINER_NAME} || true
-                        docker rm ${CONTAINER_NAME}
-                    fi
+                    bat """
+                    FOR /F "tokens=*" %%i IN ('docker ps -a -q -f name=%CONTAINER_NAME%') DO (
+                        docker stop %%i || exit 0
+                        docker rm %%i
+                    )
                     """
                 }
             }
         }
+
         stage('Run Docker Container') {
             steps {
                 script {
-                    sh """
-                    docker run -d --name ${CONTAINER_NAME} -p 5000:5000 -p 5173:5173 ${IMAGE_NAME}
-                    """
+                    bat "docker run -d --name %CONTAINER_NAME% -p 5000:5000 -p 5173:5173 %IMAGE_NAME%"
                 }
             }
         }
     }
+
     post {
         always {
             echo 'Pipeline completed.'
