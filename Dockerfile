@@ -1,59 +1,26 @@
-# Multi-stage build for optimized production image
-FROM node:18-alpine AS base
+FROM node:18-alpine
 
-# Install dependencies only when needed
-FROM base AS deps
-RUN apk add --no-cache libc6-compat
+# Create app directory
 WORKDIR /app
 
-# Copy package files
+# Copy package files first (optimization)
+COPY package*.json ./
 COPY frontend/package*.json ./frontend/
-COPY backend/package*.json ./backend/
 
-# Install dependencies
-RUN cd frontend && npm ci --only=production
-RUN cd backend && npm ci --only=production
+# Install root and frontend dependencies
+RUN npm install
+RUN cd frontend && npm install
 
-# Build the frontend
-FROM base AS frontend-builder
-WORKDIR /app
-COPY frontend/ ./frontend/
-COPY --from=deps /app/frontend/node_modules ./frontend/node_modules
+# Now copy ALL files (including backend)
+COPY . .
 
-# Build frontend
-RUN cd frontend && npm run build
+# Install backend dependencies if package.json exists
+RUN if [ -d "backend" ] && [ -f "backend/package.json" ]; then \
+      cd backend && npm install; \
+    fi
 
-# Production image
-FROM base AS runner
-WORKDIR /app
+# Expose ports (backend + frontend)
+EXPOSE 3000 5173
 
-# Create non-root user
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nodejs
-
-# Copy backend files
-COPY backend/ ./backend/
-COPY --from=deps /app/backend/node_modules ./backend/node_modules
-
-# Copy built frontend
-COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
-
-# Create uploads directory (if needed)
-RUN mkdir -p ./backend/uploads && chown nodejs:nodejs ./backend/uploads
-
-# Switch to non-root user
-USER nodejs
-
-# Expose port
-EXPOSE 3000
-
-# Set environment variables
-ENV NODE_ENV=production
-ENV PORT=3000
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD node backend/healthcheck.js || exit 1
-
-# Start the application
-CMD ["node", "backend/server.js"]
+# Run in development mode
+CMD ["npm", "run", "dev"]
