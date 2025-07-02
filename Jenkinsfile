@@ -10,7 +10,7 @@ pipeline {
         stage('Pull Docker Image') {
             steps {
                 script {
-                    bat "docker pull ${env.IMAGE_NAME}"
+                    bat "docker pull ${IMAGE_NAME}"
                 }
             }
         }
@@ -18,13 +18,16 @@ pipeline {
         stage('Remove Existing Container') {
             steps {
                 script {
-                    // More reliable way to stop and remove containers
                     bat """
                     @echo off
-                    for /f "tokens=*" %%i in ('docker ps -aq -f "name=${env.CONTAINER_NAME}"') do (
-                        docker stop %%i
-                        docker rm %%i
+                    echo Checking for existing containers...
+                    for /f "tokens=*" %%i in ('docker ps -aq -f "name=${CONTAINER_NAME}" 2^>nul') do (
+                        echo Stopping container %%i
+                        docker stop %%i || echo Failed to stop container %%i - continuing
+                        echo Removing container %%i
+                        docker rm %%i || echo Failed to remove container %%i - continuing
                     )
+                    echo Cleanup completed
                     """
                 }
             }
@@ -33,7 +36,24 @@ pipeline {
         stage('Run Docker Container') {
             steps {
                 script {
-                    bat "docker run -d --name ${env.CONTAINER_NAME} -p 5000:5000 -p 5173:5173 ${env.IMAGE_NAME}"
+                    bat """
+                    echo Starting new container...
+                    docker run -d --name ${CONTAINER_NAME} -p 5000:5000 -p 5173:5173 ${IMAGE_NAME}
+                    echo Container started successfully
+                    """
+                }
+            }
+        }
+
+        stage('Verify Container') {
+            steps {
+                script {
+                    bat """
+                    echo Verifying container status...
+                    docker ps -f "name=${CONTAINER_NAME}" --format "table {{.ID}}\\t{{.Names}}\\t{{.Status}}"
+                    timeout /t 10 /nobreak
+                    docker logs ${CONTAINER_NAME} --tail 20
+                    """
                 }
             }
         }
@@ -41,15 +61,18 @@ pipeline {
 
     post {
         always {
-            echo 'Pipeline completed.'
-        }
-        failure {
-            echo 'Pipeline failed!'
-            // You can add additional failure notifications here
+            echo 'Pipeline execution completed'
+            bat """
+            echo Final container status:
+            docker ps -a -f "name=${CONTAINER_NAME}" --format "table {{.ID}}\\t{{.Names}}\\t{{.Status}}"
+            """
         }
         success {
-            echo 'Pipeline succeeded!'
-            // You can add additional success notifications here
+            echo 'Pipeline succeeded! Application should be available at http://localhost:5000'
+        }
+        failure {
+            echo 'Pipeline failed! Check the logs above for errors.'
+            bat "docker logs ${CONTAINER_NAME} --tail 50 || echo No container logs available"
         }
     }
 }
